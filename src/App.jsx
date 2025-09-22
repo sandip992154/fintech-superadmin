@@ -1,11 +1,16 @@
-import { RouterProvider, createBrowserRouter } from "react-router";
+import { RouterProvider, createBrowserRouter } from "react-router-dom";
+import { AuthProvider } from "./contexts/AuthContext";
+import { ProtectedRoute } from "./components/utility/ProtectedRoute";
+import { ToastContainer } from "react-toastify";
+import { ForgotPassword } from "./pages/ForgotPassword";
+import { ResetPassword } from "./pages/ResetPassword";
 import "./App.css";
 import "react-datepicker/dist/react-datepicker.css";
+import "react-toastify/dist/ReactToastify.css";
 
 // Super admin
 import { SuperAdminLayout } from "./layouts/SuperAdminLayout";
 import Dashboard from "./pages/super/Dashboard";
-import { SignIN } from "./pages/SignIn";
 import { SchemeManager } from "./pages/super/resources_tab/SchemeManger";
 import { CompanyProfile } from "./pages/super/resources_tab/CompanyProfile";
 import { CompanyManger } from "./pages/super/resources_tab/CompanyManger";
@@ -52,15 +57,46 @@ import TransactionHistory from "./pages/super/transaction_report/TransactionHist
 import CreateAdmin from "./components/super/members/admin/CreateAdmin";
 import MemberAdminLayout from "./layouts/members/MemberAdminLayout";
 import CreateCutsomerBYRetailer from "./components/super/members/retailer/CreateCustomerBYRetailer";
+import { SignIn } from "./pages/SignIn";
 
 // admin
 
 const App = () => {
   const router = createBrowserRouter([
+    {
+      path: "/signin",
+      element: (
+        <AuthProvider>
+          <SignIn />
+        </AuthProvider>
+      ),
+    },
+    {
+      path: "/forgot-password",
+      element: (
+        <AuthProvider>
+          <ForgotPassword />
+        </AuthProvider>
+      ),
+    },
+    {
+      path: "/reset-password",
+      element: (
+        <AuthProvider>
+          <ResetPassword />
+        </AuthProvider>
+      ),
+    },
     // super admin
     {
       path: "/",
-      Component: SuperAdminLayout,
+      element: (
+        <AuthProvider>
+          <ProtectedRoute>
+            <SuperAdminLayout />
+          </ProtectedRoute>
+        </AuthProvider>
+      ),
       children: [
         {
           path: "/",
@@ -288,13 +324,14 @@ const App = () => {
       ],
     },
 
-    // sign up
-    {
-      path: "/signin",
-      Component: SignIN,
-    },
+    // Removed duplicate sign in route
   ]);
-  return <RouterProvider router={router} />;
+  return (
+    <>
+      <RouterProvider router={router} />
+      <ToastContainer />
+    </>
+  );
 };
 
 export default App;

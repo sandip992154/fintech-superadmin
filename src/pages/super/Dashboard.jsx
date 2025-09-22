@@ -182,8 +182,8 @@ const Dashboard = () => {
               />
             </div>
             <p className="mb-1">Timing: 10am to 7pm</p>
-            <p>9059207545</p>
-            <p className="font-semibold">support@phonesepay.in</p>
+            <p>+91 7997991899</p>
+            <p className="font-semibold">contact@bandarupay.com</p>
           </div>
         </div>
       </div>
