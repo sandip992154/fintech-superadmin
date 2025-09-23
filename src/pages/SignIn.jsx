@@ -1,11 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { toast } from "react-toastify";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Mail,
+  Lock,
+  User,
+  Shield,
+  CheckCircle,
+  AlertCircle,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { LoadingButton, LoadingSpinner } from "../components/ui/Loading";
+import { Alert } from "../components/ui/Alert";
+import { authNotifications } from "../services/modernNotificationService";
 
 // Validation Schema
 const signInSchema = z.object({
@@ -22,34 +33,60 @@ const otpSchema = z.object({
 export const SignIn = () => {
   const [loading, setLoading] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [otpTimer, setOtpTimer] = useState(0);
   const { login, verifyOtp, isOtpSent } = useAuth();
   const navigate = useNavigate();
 
   const slides = [
     {
-      image:
-        "https://static.vecteezy.com/system/resources/previews/003/001/886/non_2x/fintech-financial-technology-online-banking-and-crowdfunding-vector.jpg",
-      title: "Secure Login",
-      description: "Access your superadmin dashboard with enhanced security",
+      image: "/src/assets/img/bg-bank.jpg",
+      title: "🔐 Secure Access",
+      description:
+        "Advanced security protocols protect your administrative dashboard",
+      gradient: "from-blue-600 to-purple-600",
     },
     {
-      image:
-        "https://www.currencytransfer.com/wp-content/uploads/2024/09/blog-post-image-fintech1.jpg",
-      title: "Complete Control",
-      description: "Manage your entire system from one place",
+      image: "/src/assets/img/bg-recharge.jpg",
+      title: "⚡ Complete Control",
+      description:
+        "Manage your entire fintech ecosystem from one centralized platform",
+      gradient: "from-purple-600 to-pink-600",
     },
     {
-      image:
-        "https://www.chiratae.com/wp-content/uploads/2022/12/Indian-fintech-market-expected-to-reach-USD-150-bn-in-valuation-by-2025-MoS-Finance.jpg-1024x576.webp",
-      title: "Advanced Features",
-      description: "Access to powerful administrative tools",
+      image: "/src/assets/img/bg-travel.jpg",
+      title: "🚀 Advanced Analytics",
+      description:
+        "Real-time insights and powerful administrative tools at your fingertips",
+      gradient: "from-pink-600 to-red-600",
     },
   ];
+
+  // Auto-slide effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev === slides.length - 1 ? 0 : prev + 1));
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [slides.length]);
+
+  // OTP Timer
+  useEffect(() => {
+    let interval;
+    if (otpTimer > 0) {
+      interval = setInterval(() => {
+        setOtpTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [otpTimer]);
 
   const {
     register: registerLogin,
     handleSubmit: handleLoginSubmit,
     formState: { errors: loginErrors },
+    reset: resetLoginForm,
   } = useForm({
     resolver: zodResolver(signInSchema),
   });
@@ -58,6 +95,7 @@ export const SignIn = () => {
     register: registerOtp,
     handleSubmit: handleOtpSubmit,
     formState: { errors: otpErrors },
+    reset: resetOtpForm,
   } = useForm({
     resolver: zodResolver(otpSchema),
   });
@@ -65,7 +103,6 @@ export const SignIn = () => {
   const onLoginSubmit = async (data) => {
     try {
       setLoading(true);
-      console.log("Starting login submission");
 
       // Convert to FormData as backend expects form data
       const formData = new FormData();
@@ -73,23 +110,38 @@ export const SignIn = () => {
       formData.append("password", data.password);
 
       const response = await login(formData);
-      console.log("Login response in SignIn:", response);
-      console.log("Is OTP sent after login:", isOtpSent);
 
-      // Show success message
+      // Handle successful login or OTP requirement
       if (response?.message?.includes("OTP sent")) {
-        toast.success("OTP sent to your email. Please check and enter below.");
+        authNotifications.otpSent("email");
+        setOtpTimer(120); // 2 minutes timer
+        resetOtpForm();
       } else {
-        toast.success(response?.message || "Login successful!");
+        authNotifications.loginSuccess(response?.user?.name || "User");
       }
     } catch (error) {
-      console.error("Login error in SignIn:", error);
+      console.error("Login error:", error);
 
-      // Don't show error for OTP sent message
-      if (error.message?.includes("OTP sent")) {
-        toast.success("OTP sent to your email. Please check and enter below.");
+      // Friendly error messages
+      if (error.message?.includes("Invalid credentials")) {
+        authNotifications.loginError(
+          "Invalid email/phone/code or password. Please check your credentials."
+        );
+      } else if (error.message?.includes("OTP sent")) {
+        authNotifications.otpSent("email");
+        setOtpTimer(120);
+        resetOtpForm();
+        return;
+      } else if (error.message?.includes("Account locked")) {
+        authNotifications.loginError(
+          "Account temporarily locked. Please try again later or contact support."
+        );
+      } else if (error.message?.includes("Network")) {
+        authNotifications.loginError(
+          "Network error. Please check your connection and try again."
+        );
       } else {
-        toast.error(error.message || "Failed to login. Please try again.");
+        authNotifications.loginError();
       }
     } finally {
       setLoading(false);
@@ -100,18 +152,45 @@ export const SignIn = () => {
     try {
       setLoading(true);
       const response = await verifyOtp(data.otp);
-      toast.success(response.message);
+
+      authNotifications.loginSuccess("Welcome back!");
+
       navigate(response.redirect_path || "/dashboard");
     } catch (error) {
       console.error("OTP verification error:", error);
-      toast.error(
-        error?.response?.data?.message ||
-          error?.message ||
-          "Failed to verify OTP. Please try again."
-      );
-      if (error.response?.status === 401) {
-        // Optionally handle OTP resend or reset state here
+
+      if (error.message?.includes("expired")) {
+        authNotifications.otpError(
+          "OTP has expired. Please request a new one."
+        );
+      } else if (error.message?.includes("invalid")) {
+        authNotifications.otpError();
+      } else if (error.message?.includes("attempts")) {
+        authNotifications.otpError(
+          "Too many failed attempts. Please try again later."
+        );
+      } else {
+        authNotifications.otpError();
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resendOtp = async () => {
+    try {
+      setLoading(true);
+      // Trigger the login again to resend OTP
+      const loginForm = document.querySelector("form");
+      const formData = new FormData(loginForm);
+
+      await login(formData);
+      setOtpTimer(120);
+      resetOtpForm();
+
+      authNotifications.otpSent("email");
+    } catch (error) {
+      authNotifications.loginError("Failed to resend OTP. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -126,170 +205,298 @@ export const SignIn = () => {
   };
 
   return (
-    <div className="flex h-screen">
-      {/* Left Side - Slider */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gray-100">
-        <div className="relative w-full">
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-full">
-              <img
-                src={slides[currentSlide].image}
-                alt={slides[currentSlide].title}
-                className="w-full h-[600px] object-cover"
-              />
-              <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-6">
-                <h3 className="text-2xl font-bold mb-2">
-                  {slides[currentSlide].title}
-                </h3>
-                <p>{slides[currentSlide].description}</p>
-              </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex">
+      {/* Left Side - Hero Section */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-600/90 to-purple-600/90 z-10"></div>
+        <div className="relative z-20 flex flex-col justify-center items-center p-12 text-white">
+          {/* Logo */}
+          <div className="mb-8">
+            <img
+              src="/src/assets/img/bandaru_pay_logo.png"
+              alt="Bandaru Pay"
+              className="h-16 w-auto"
+            />
+          </div>
+
+          {/* Hero Content */}
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">
+              {slides[currentSlide].title}
+            </h1>
+            <p className="text-xl text-blue-100 leading-relaxed max-w-md">
+              {slides[currentSlide].description}
+            </p>
+          </div>
+
+          {/* Features */}
+          <div className="grid grid-cols-1 gap-4 w-full max-w-sm">
+            <div className="flex items-center space-x-3 p-3 bg-white/10 rounded-lg backdrop-blur-sm">
+              <Shield className="h-5 w-5 text-green-400" />
+              <span className="text-sm">Bank-grade Security</span>
+            </div>
+            <div className="flex items-center space-x-3 p-3 bg-white/10 rounded-lg backdrop-blur-sm">
+              <CheckCircle className="h-5 w-5 text-green-400" />
+              <span className="text-sm">Multi-factor Authentication</span>
+            </div>
+            <div className="flex items-center space-x-3 p-3 bg-white/10 rounded-lg backdrop-blur-sm">
+              <User className="h-5 w-5 text-green-400" />
+              <span className="text-sm">Role-based Access Control</span>
             </div>
           </div>
-          <button
-            onClick={prevSlide}
-            className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white p-2 rounded-full shadow-lg"
-          >
-            <ChevronLeft className="h-6 w-6" />
-          </button>
-          <button
-            onClick={nextSlide}
-            className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white p-2 rounded-full shadow-lg"
-          >
-            <ChevronRight className="h-6 w-6" />
-          </button>
+
+          {/* Slide Indicators */}
+          <div className="flex space-x-2 mt-8">
+            {slides.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setCurrentSlide(index)}
+                className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                  index === currentSlide
+                    ? "bg-white scale-110"
+                    : "bg-white/50 hover:bg-white/70"
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Background Pattern */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-10 left-10 w-32 h-32 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute bottom-10 right-10 w-40 h-40 bg-blue-300 rounded-full blur-3xl"></div>
+          <div className="absolute top-1/2 left-1/3 w-24 h-24 bg-purple-300 rounded-full blur-2xl"></div>
         </div>
       </div>
 
       {/* Right Side - Login Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
-        <div className="w-full max-w-md space-y-8">
-          <div className="text-center">
-            <h2 className="text-4xl font-bold text-gray-900 mb-2">
-              Welcome Back
-            </h2>
-            <p className="text-gray-600">
-              Sign in to access your superadmin dashboard
-            </p>
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 lg:p-12">
+        <div className="w-full max-w-md">
+          {/* Mobile Logo */}
+          <div className="lg:hidden text-center mb-8">
+            <img
+              src="/src/assets/img/bandaru_pay_logo.png"
+              alt="Bandaru Pay"
+              className="h-12 w-auto mx-auto mb-4"
+            />
           </div>
 
-          {!isOtpSent ? (
-            <form
-              onSubmit={handleLoginSubmit(onLoginSubmit)}
-              className="mt-8 space-y-6"
-            >
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Email/Phone/Code
-                  </label>
-                  <div className="mt-1 relative">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 border border-gray-100">
+            {/* Header */}
+            <div className="text-center mb-8">
+              <div className="mx-auto w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
+                <Shield className="h-8 w-8 text-white" />
+              </div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                {isOtpSent ? "Verify OTP" : "Welcome Back"}
+              </h2>
+              <p className="text-gray-600">
+                {isOtpSent
+                  ? "Enter the verification code sent to your email"
+                  : "Sign in to access your superadmin dashboard"}
+              </p>
+            </div>
+
+            {!isOtpSent ? (
+              <form
+                onSubmit={handleLoginSubmit(onLoginSubmit)}
+                className="space-y-6"
+              >
+                <div className="space-y-6">
+                  <div className="form-group">
+                    <label className="form-label">
+                      Email / Phone / User Code
+                    </label>
+                    <div className="input-container">
+                      <Mail className="input-icon h-5 w-5" />
+                      <input
+                        {...registerLogin("identifier")}
+                        type="text"
+                        className="input-modern focus-ring pl-28 pr-4"
+                        placeholder="Enter your email, phone or user code"
+                      />
+                    </div>
+                    {loginErrors.identifier && (
+                      <div className="error-message">
+                        <AlertCircle className="h-4 w-4" />
+                        <p>{loginErrors.identifier.message}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Password</label>
+                    <div className="input-container">
+                      <Lock className="input-icon h-5 w-5" />
+                      <input
+                        {...registerLogin("password")}
+                        type={showPassword ? "text" : "password"}
+                        className="input-modern focus-ring pl-12 pr-14"
+                        placeholder="Enter your password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="password-toggle"
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-5 w-5" />
+                        ) : (
+                          <Eye className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
+                    {loginErrors.password && (
+                      <div className="error-message">
+                        <AlertCircle className="h-4 w-4" />
+                        <p>{loginErrors.password.message}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Remember Me */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
                     <input
-                      {...registerLogin("identifier")}
+                      id="remember-me"
+                      name="remember-me"
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label
+                      htmlFor="remember-me"
+                      className="ml-2 text-sm text-gray-600"
+                    >
+                      Remember me
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/forgot-password")}
+                    className="text-sm font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+
+                <LoadingButton
+                  type="submit"
+                  loading={loading}
+                  loadingText="Signing In..."
+                  variant="primary"
+                  size="md"
+                  fullWidth={true}
+                  disabled={loading}
+                >
+                  <Shield className="h-5 w-5 mr-2" />
+                  Sign In Securely
+                </LoadingButton>
+              </form>
+            ) : (
+              <form
+                onSubmit={handleOtpSubmit(onOtpSubmit)}
+                className="space-y-6"
+              >
+                {/* OTP Timer */}
+                {otpTimer > 0 && (
+                  <div className="text-center p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-sm text-blue-700">
+                      ⏰ OTP expires in{" "}
+                      <span className="font-semibold">
+                        {Math.floor(otpTimer / 60)}:
+                        {(otpTimer % 60).toString().padStart(2, "0")}
+                      </span>
+                    </p>
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label className="form-label">Verification Code</label>
+                  <div className="input-container">
+                    <Shield className="input-icon h-5 w-5" />
+                    <input
+                      {...registerOtp("otp")}
                       type="text"
-                      className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter your email, phone or user code"
+                      maxLength={6}
+                      className="input-modern focus-ring pl-12 pr-4 text-center text-lg font-mono tracking-widest"
+                      placeholder="000000"
                     />
                   </div>
-                  {loginErrors.identifier && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {loginErrors.identifier.message}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Password
-                  </label>
-                  <input
-                    {...registerLogin("password")}
-                    type="password"
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Enter your password"
-                  />
-                  {loginErrors.password && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {loginErrors.password.message}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                >
-                  {loading ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
-                  ) : (
-                    "Sign In"
-                  )}
-                </button>
-              </div>
-            </form>
-          ) : (
-            <form
-              onSubmit={handleOtpSubmit(onOtpSubmit)}
-              className="mt-8 space-y-6"
-            >
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Enter OTP
-                </label>
-                <div className="mt-1">
-                  <input
-                    {...registerOtp("otp")}
-                    type="text"
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Enter OTP"
-                  />
                   {otpErrors.otp && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {otpErrors.otp.message}
-                    </p>
+                    <div className="error-message">
+                      <AlertCircle className="h-4 w-4" />
+                      <p>{otpErrors.otp.message}</p>
+                    </div>
                   )}
                 </div>
-              </div>
 
-              <div>
-                <button
+                <LoadingButton
                   type="submit"
+                  loading={loading}
+                  loadingText="Verifying..."
+                  variant="success"
+                  size="md"
+                  fullWidth={true}
                   disabled={loading}
-                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
                 >
-                  {loading ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
+                  <CheckCircle className="h-5 w-5 mr-2" />
+                  Verify & Continue
+                </LoadingButton>
+
+                {/* Resend OTP */}
+                <div className="text-center space-y-3">
+                  {otpTimer === 0 ? (
+                    <button
+                      type="button"
+                      onClick={resendOtp}
+                      disabled={loading}
+                      className="text-sm font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200"
+                    >
+                      📧 Resend OTP
+                    </button>
                   ) : (
-                    "Verify OTP"
+                    <p className="text-sm text-gray-500">
+                      Didn't receive the code? You can resend in{" "}
+                      {Math.floor(otpTimer / 60)}:
+                      {(otpTimer % 60).toString().padStart(2, "0")}
+                    </p>
                   )}
-                </button>
-              </div>
 
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={() => setIsOtpSent(false)}
-                  className="font-medium text-blue-600 hover:text-blue-500"
-                >
-                  Back to Login
-                </button>
-              </div>
-            </form>
-          )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsOtpSent(false);
+                      setOtpTimer(0);
+                      resetOtpForm();
+                    }}
+                    className="block w-full text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors duration-200"
+                  >
+                    ← Back to Login
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
 
-          {!isOtpSent && (
-            <div className="mt-4 text-sm">
-              <button
-                onClick={() => navigate("/forgot-password")}
-                type="button"
-                className="font-medium text-blue-600 hover:text-blue-500"
-              >
-                Forgot your password?
-              </button>
+          {/* Footer */}
+          <div className="mt-6 text-center">
+            <p className="text-xs text-gray-500">
+              Protected by enterprise-grade security
+            </p>
+            <div className="flex justify-center items-center mt-2 space-x-4">
+              <div className="flex items-center text-xs text-gray-500">
+                <Shield className="h-3 w-3 mr-1" />
+                SSL Encrypted
+              </div>
+              <div className="flex items-center text-xs text-gray-500">
+                <CheckCircle className="h-3 w-3 mr-1" />
+                GDPR Compliant
+              </div>
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

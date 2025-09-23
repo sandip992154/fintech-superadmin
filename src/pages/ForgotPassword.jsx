@@ -3,21 +3,18 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Mail } from "lucide-react";
+import { Mail, ArrowLeft, CheckCircle, AlertCircle, Send } from "lucide-react";
 import { toast } from "react-toastify";
 import authService from "../services/authService";
+import { LoadingButton } from "../components/ui/Loading";
 
 const forgotPasswordSchema = z.object({
   email: z.string().email("Please enter a valid email address."),
 });
 
-const otpSchema = z.object({
-  otp: z.string().min(6, "OTP must be 6 digits"),
-});
-
 export const ForgotPassword = () => {
-  const [showOtpInput, setShowOtpInput] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
   const [email, setEmail] = useState("");
   const navigate = useNavigate();
 
@@ -26,134 +23,191 @@ export const ForgotPassword = () => {
     handleSubmit,
     formState: { errors },
   } = useForm({
-    resolver: zodResolver(showOtpInput ? otpSchema : forgotPasswordSchema),
+    resolver: zodResolver(forgotPasswordSchema),
   });
 
   const onSubmit = async (data) => {
     setIsLoading(true);
     try {
-      if (!showOtpInput) {
-        // First step: Request password reset
-        const response = await authService.forgotPassword(data.email);
-        setEmail(data.email);
-        toast.success(response.message || "OTP sent to your email");
-        setShowOtpInput(true);
-      } else {
-        // Second step: Verify OTP
-        const response = await authService.verifyPasswordResetOtp({
-          email,
-          otp: data.otp,
-        });
-        toast.success(response.message || "OTP verified successfully");
-        // Navigate to reset password page with token
-        navigate("/reset-password", {
-          state: { token: response.token, email },
-        });
-      }
+      await authService.forgotPassword(data.email);
+      setEmail(data.email);
+      setEmailSent(true);
+
+      toast.success("� Password reset email sent! Check your inbox.", {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+      });
     } catch (error) {
-      toast.error(error.response?.data?.detail || "An error occurred");
+      let errorMessage = "❌ Something went wrong. Please try again.";
+
+      if (error.response?.data?.detail?.includes("not found")) {
+        errorMessage =
+          "📧 Email address not found. Please check and try again.";
+      }
+
+      toast.error(errorMessage, {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Forgot Password
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          {!showOtpInput
-            ? "Enter your email to receive a password reset OTP"
-            : "Enter the OTP sent to your email"}
-        </p>
-      </div>
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <img
+            src="/src/assets/img/bandaru_pay_logo.png"
+            alt="Bandaru Pay"
+            className="h-12 w-auto mx-auto mb-4"
+          />
+        </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            {!showOtpInput ? (
+        <div className="bg-white rounded-2xl shadow-2xl p-8 border border-gray-100">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="mx-auto w-16 h-16 bg-gradient-to-r from-orange-500 to-red-600 rounded-full flex items-center justify-center mb-4">
+              {emailSent ? (
+                <CheckCircle className="h-8 w-8 text-white" />
+              ) : (
+                <Mail className="h-8 w-8 text-white" />
+              )}
+            </div>
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">
+              {emailSent ? "Email Sent!" : "Reset Password"}
+            </h2>
+            <p className="text-gray-600">
+              {emailSent
+                ? `Password reset link has been sent to ${email}. Check your inbox and click the link to reset your password.`
+                : "Enter your email address and we'll send you a password reset link"}
+            </p>
+          </div>
+          {!emailSent ? (
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div>
                 <label
                   htmlFor="email"
-                  className="block text-sm font-medium text-gray-700"
+                  className="block text-sm font-semibold text-gray-700 mb-2"
                 >
-                  Email address
+                  Email Address
                 </label>
-                <div className="mt-1 relative">
+                <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Mail className="h-5 w-5 text-gray-400" />
                   </div>
                   <input
                     {...register("email")}
                     type="email"
-                    className="appearance-none block w-full pl-10 px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Enter your email"
+                    className="input-modern focus-ring pl-10 pr-4"
+                    placeholder="Enter your registered email address"
                   />
                 </div>
                 {errors.email && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {errors.email.message}
-                  </p>
+                  <div className="mt-2 flex items-center text-red-600">
+                    <AlertCircle className="h-4 w-4 mr-1" />
+                    <p className="text-sm">{errors.email.message}</p>
+                  </div>
                 )}
-              </div>
-            ) : (
-              <div>
-                <label
-                  htmlFor="otp"
-                  className="block text-sm font-medium text-gray-700"
-                >
-                  Enter OTP
-                </label>
-                <div className="mt-1">
-                  <input
-                    {...register("otp")}
-                    type="text"
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Enter 6-digit OTP"
-                  />
-                </div>
-                {errors.otp && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {errors.otp.message}
-                  </p>
-                )}
-              </div>
-            )}
 
-            <div>
-              <button
+                {/* Email Info */}
+                <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-start space-x-2">
+                    <Mail className="h-4 w-4 text-blue-600 mt-0.5" />
+                    <div>
+                      <p className="text-xs text-blue-700 font-medium">
+                        Reset Link
+                      </p>
+                      <p className="text-xs text-blue-600">
+                        We'll send a secure password reset link to your
+                        registered email address.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <LoadingButton
                 type="submit"
+                loading={isLoading}
+                loadingText="Sending..."
+                variant="warning"
+                size="md"
+                fullWidth={true}
                 disabled={isLoading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
               >
-                {isLoading ? (
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
-                ) : showOtpInput ? (
-                  "Verify OTP"
-                ) : (
-                  "Send Reset OTP"
-                )}
+                <Send className="h-5 w-5 mr-2" />
+                Send Reset Link
+              </LoadingButton>
+            </form>
+          ) : (
+            <div className="space-y-6">
+              <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+                <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-3" />
+                <h3 className="text-lg font-semibold text-green-800 mb-2">
+                  Email Sent Successfully!
+                </h3>
+                <p className="text-sm text-green-700">
+                  Check your inbox and click the reset link to create a new
+                  password.
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  setEmailSent(false);
+                  setEmail("");
+                }}
+                className="w-full btn-secondary"
+              >
+                Send Another Email
               </button>
             </div>
-          </form>
+          )}
 
+          {/* Back to Login */}
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-300" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">
-                  Remember your password?{" "}
-                  <button
-                    onClick={() => navigate("/signin")}
-                    className="font-medium text-blue-600 hover:text-blue-500"
-                  >
-                    Sign in
-                  </button>
-                </span>
+                <span className="px-4 bg-white text-gray-500">or</span>
+              </div>
+            </div>
+
+            <div className="mt-4 text-center">
+              <button
+                onClick={() => navigate("/signin")}
+                className="inline-flex items-center text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors duration-200"
+              >
+                <ArrowLeft className="h-4 w-4 mr-1" />
+                Back to Sign In
+              </button>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="mt-6 text-center">
+            <p className="text-xs text-gray-500">
+              Need help? Contact support for assistance
+            </p>
+            <div className="flex justify-center items-center mt-2 space-x-4">
+              <div className="flex items-center text-xs text-gray-500">
+                <Mail className="h-3 w-3 mr-1" />
+                Secure Email
+              </div>
+              <div className="flex items-center text-xs text-gray-500">
+                <CheckCircle className="h-3 w-3 mr-1" />
+                Fast Reset
               </div>
             </div>
           </div>

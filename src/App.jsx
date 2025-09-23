@@ -4,9 +4,13 @@ import { ProtectedRoute } from "./components/utility/ProtectedRoute";
 import { ToastContainer } from "react-toastify";
 import { ForgotPassword } from "./pages/ForgotPassword";
 import { ResetPassword } from "./pages/ResetPassword";
+import { logEnvironment } from "./config/environment";
 import "./App.css";
 import "react-datepicker/dist/react-datepicker.css";
 import "react-toastify/dist/ReactToastify.css";
+
+// Log environment configuration on app start
+logEnvironment();
 
 // Super admin
 import { SuperAdminLayout } from "./layouts/SuperAdminLayout";
@@ -336,7 +340,19 @@ const App = () => {
   return (
     <>
       <RouterProvider router={router} />
-      <ToastContainer />
+      <ToastContainer
+        position="top-right"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop={true}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+        className="modern-toast-container"
+      />
     </>
   );
 };

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
+import { toast } from "react-toastify";
 
 // Yup validation schema
 const schema = yup.object().shape({
@@ -20,7 +21,7 @@ const schema = yup.object().shape({
     .required(),
   securityPin: yup
     .string()
-    .matches(/^\d{4,6}$/, "PIN must be 4-6 digits")
+    .matches(/^\d{4}$/, "PIN must be exactly 4 digits")
     .required(),
   passportPhoto: yup
     .mixed()
@@ -55,7 +56,7 @@ const KYCDetails = ({ initialData }) => {
       setValue("passportPhoto", e.target.files);
       setPreviewUrl(URL.createObjectURL(file));
     } else {
-      alert("Please select a valid image file.");
+      toast.error("Please select a valid image file.");
       setValue("passportPhoto", null);
       setPreviewUrl(null);
     }

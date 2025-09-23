@@ -21,26 +21,46 @@ export const AuthProvider = ({ children }) => {
   const [pendingIdentifier, setPendingIdentifier] = useState(null);
   const navigate = useNavigate();
 
-  // Token refresh timer
+  // Enhanced token refresh timer with retry logic
   useEffect(() => {
     let refreshTimer;
-    if (isAuthenticated) {
-      const refreshInterval = 15 * 60 * 1000; // 15 minutes
-      refreshTimer = setInterval(async () => {
-        try {
-          const refreshToken = localStorage.getItem("refresh_token");
-          if (refreshToken) {
-            const response = await authService.refreshToken(refreshToken);
-            if (response.access_token) {
-              localStorage.setItem("token", response.access_token);
-            }
+    let retryCount = 0;
+    const maxRetries = 3;
+
+    const refreshTokenWithRetry = async () => {
+      try {
+        const refreshToken = localStorage.getItem("refresh_token");
+        if (refreshToken) {
+          const response = await authService.refreshToken(refreshToken);
+          if (response.access_token) {
+            localStorage.setItem("token", response.access_token);
+            retryCount = 0; // Reset retry count on success
           }
-        } catch (error) {
-          console.error("Token refresh failed:", error);
-          handleLogout();
         }
-      }, refreshInterval);
+      } catch (error) {
+        console.error("Token refresh failed:", error);
+        retryCount++;
+
+        if (retryCount >= maxRetries) {
+          console.error("Max refresh retries reached, logging out");
+          toast.warning("Session expired. Please log in again.", {
+            position: "top-right",
+            autoClose: 5000,
+          });
+          handleLogout();
+        } else {
+          console.log(`Retrying token refresh (${retryCount}/${maxRetries})`);
+          // Retry after a delay
+          setTimeout(refreshTokenWithRetry, 5000 * retryCount);
+        }
+      }
+    };
+
+    if (isAuthenticated) {
+      const refreshInterval = 14 * 60 * 1000; // 14 minutes (slightly less than token expiry)
+      refreshTimer = setInterval(refreshTokenWithRetry, refreshInterval);
     }
+
     return () => clearInterval(refreshTimer);
   }, [isAuthenticated]);
 
@@ -117,24 +137,50 @@ export const AuthProvider = ({ children }) => {
           localStorage.setItem("refresh_token", response.refresh_token);
         }
 
+        // Store login timestamp for session management
+        localStorage.setItem("login_timestamp", Date.now().toString());
+
         // Get user profile
         const userData = await authService.getCurrentUser();
         setUser(userData);
         setIsAuthenticated(true);
+        setIsOtpSent(false);
+        setPendingIdentifier(null);
+
+        // Success toast with user info
+        toast.success(`🎉 Welcome back, ${userData.name || userData.email}!`, {
+          position: "top-right",
+          autoClose: 5000,
+        });
 
         navigate("/");
-        toast.success("Login successful!");
       }
     } catch (error) {
-      toast.error(error.message || "Login failed. Please try again.");
+      console.error("OTP verification error:", error);
       throw error;
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = (showToast = true) => {
+    // Clear all auth-related data
     authService.logout();
     setUser(null);
     setIsAuthenticated(false);
+    setIsOtpSent(false);
+    setPendingIdentifier(null);
+
+    // Clear any pending toasts
+    toast.dismiss();
+
+    if (showToast) {
+      toast.info("👋 You have been logged out successfully.", {
+        position: "top-right",
+        autoClose: 3000,
+      });
+    }
+
+    // Navigate to login page
+    navigate("/signin");
   };
 
   const changePassword = async (currentPassword, newPassword) => {
@@ -176,30 +222,85 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Session activity monitoring
+  // Enhanced session activity monitoring with warnings
   useEffect(() => {
     let inactivityTimer;
+    let warningTimer;
+    const inactivityPeriod = 30 * 60 * 1000; // 30 minutes
+    const warningPeriod = 25 * 60 * 1000; // 25 minutes (5 min warning)
+
+    const showInactivityWarning = () => {
+      toast.warning(
+        "⚠️ You'll be logged out in 5 minutes due to inactivity. Move your mouse to stay logged in.",
+        {
+          position: "top-center",
+          autoClose: 10000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          toastId: "inactivity-warning", // Prevent duplicate toasts
+        }
+      );
+    };
+
     const resetTimer = () => {
       clearTimeout(inactivityTimer);
+      clearTimeout(warningTimer);
+
+      // Set warning timer
+      warningTimer = setTimeout(showInactivityWarning, warningPeriod);
+
+      // Set logout timer
       inactivityTimer = setTimeout(() => {
         handleLogout();
-        toast.warning("Session expired due to inactivity");
-      }, 30 * 60 * 1000); // 30 minutes
+        toast.error(
+          "🔐 Session expired due to inactivity. Please log in again.",
+          {
+            position: "top-center",
+            autoClose: 8000,
+          }
+        );
+      }, inactivityPeriod);
     };
 
     if (isAuthenticated) {
       // Monitor user activity
-      const events = ["mousedown", "keydown", "scroll", "touchstart"];
-      events.forEach((event) => document.addEventListener(event, resetTimer));
+      const events = [
+        "mousedown",
+        "keydown",
+        "scroll",
+        "touchstart",
+        "mousemove",
+        "click",
+      ];
+
+      events.forEach((event) =>
+        document.addEventListener(event, resetTimer, true)
+      );
       resetTimer();
 
       return () => {
         events.forEach((event) =>
-          document.removeEventListener(event, resetTimer)
+          document.removeEventListener(event, resetTimer, true)
         );
         clearTimeout(inactivityTimer);
+        clearTimeout(warningTimer);
       };
     }
+  }, [isAuthenticated]);
+
+  // Keep session alive on page visibility change
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && isAuthenticated) {
+        // Check if token is still valid when user returns to tab
+        checkAuth();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [isAuthenticated]);
 
   const value = {

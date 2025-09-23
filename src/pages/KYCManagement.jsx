@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { toast } from "react-toastify";
 import {
   FiEye,
   FiCheck,
@@ -96,10 +97,10 @@ const KYCManagement = () => {
       setApprovalData({ admin_notes: "" });
       setShowApprovalModal(false);
       fetchKYCApplications(); // Refresh list
-      alert("KYC application approved successfully!");
+      toast.success("KYC application approved successfully!");
     } catch (error) {
       console.error("Error approving KYC:", error);
-      alert("Failed to approve KYC application");
+      toast.error("Failed to approve KYC application");
     }
   };
 
@@ -115,10 +116,10 @@ const KYCManagement = () => {
       setRejectionData({ rejection_reason: "", admin_notes: "" });
       setShowRejectionModal(false);
       fetchKYCApplications(); // Refresh list
-      alert("KYC application rejected successfully!");
+      toast.success("KYC application rejected successfully!");
     } catch (error) {
       console.error("Error rejecting KYC:", error);
-      alert("Failed to reject KYC application");
+      toast.error("Failed to reject KYC application");
     }
   };
 
@@ -141,7 +142,7 @@ const KYCManagement = () => {
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Error downloading document:", error);
-      alert("Failed to download document");
+      toast.error("Failed to download document");
     }
   };
 

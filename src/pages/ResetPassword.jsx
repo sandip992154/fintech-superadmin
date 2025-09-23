@@ -1,11 +1,27 @@
-import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "react-toastify";
-import { Lock } from "lucide-react";
+import {
+  Lock,
+  Eye,
+  EyeOff,
+  CheckCircle,
+  AlertCircle,
+  Shield,
+  ArrowLeft,
+  Check,
+  X,
+} from "lucide-react";
 import authService from "../services/authService";
+import {
+  LoadingButton,
+  LoadingSpinner,
+  ProgressBar,
+} from "../components/ui/Loading";
+import { Alert } from "../components/ui/Alert";
 
 const resetPasswordSchema = z
   .object({
@@ -28,15 +44,61 @@ const resetPasswordSchema = z
 
 export const ResetPassword = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [password, setPassword] = useState("");
   const navigate = useNavigate();
-  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get("token");
 
-  // Get token and email from location state
-  const token = location.state?.token;
-  const email = location.state?.email;
+  // Password strength checker
+  const getPasswordStrength = (pwd) => {
+    if (!pwd) return { score: 0, label: "", color: "" };
+
+    let score = 0;
+    const checks = {
+      length: pwd.length >= 8,
+      uppercase: /[A-Z]/.test(pwd),
+      lowercase: /[a-z]/.test(pwd),
+      number: /[0-9]/.test(pwd),
+      special: /[!@#$%^&*(),.?":{}|<>]/.test(pwd),
+    };
+
+    score = Object.values(checks).filter(Boolean).length;
+
+    if (score < 2)
+      return {
+        score,
+        label: "Weak",
+        color: "text-red-600",
+        bgColor: "bg-red-100",
+      };
+    if (score < 4)
+      return {
+        score,
+        label: "Fair",
+        color: "text-yellow-600",
+        bgColor: "bg-yellow-100",
+      };
+    if (score < 5)
+      return {
+        score,
+        label: "Good",
+        color: "text-blue-600",
+        bgColor: "bg-blue-100",
+      };
+    return {
+      score,
+      label: "Strong",
+      color: "text-green-600",
+      bgColor: "bg-green-100",
+    };
+  };
+
+  const passwordStrength = getPasswordStrength(password);
 
   // Redirect to forgot password if no token
-  if (!token || !email) {
+  if (!token) {
     navigate("/forgot-password");
     return null;
   }
@@ -52,98 +114,268 @@ export const ResetPassword = () => {
   const onSubmit = async (data) => {
     setIsLoading(true);
     try {
-      const response = await authService.resetPassword({
-        email,
+      const response = await authService.resetPassword(
         token,
-        password: data.password,
+        data.password,
+        data.confirmPassword
+      );
+
+      toast.success("🎉 Password reset successful! You can now sign in.", {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
       });
-      toast.success(response.message || "Password reset successful");
+
       navigate("/signin");
     } catch (error) {
-      toast.error(error.response?.data?.detail || "An error occurred");
+      let errorMessage = "❌ Failed to reset password. Please try again.";
+
+      if (error.response?.data?.detail?.includes("expired")) {
+        errorMessage = "⏰ Reset link has expired. Please request a new one.";
+      } else if (error.response?.data?.detail?.includes("invalid")) {
+        errorMessage =
+          "🚫 Invalid reset token. Please request a new reset link.";
+      }
+
+      toast.error(errorMessage, {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Reset Password
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Enter your new password
-        </p>
-      </div>
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <img
+            src="/src/assets/img/bandaru_pay_logo.png"
+            alt="Bandaru Pay"
+            className="h-12 w-auto mx-auto mb-4"
+          />
+        </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 border border-gray-100">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="mx-auto w-16 h-16 bg-gradient-to-r from-green-500 to-blue-600 rounded-full flex items-center justify-center mb-4">
+              <Lock className="h-8 w-8 text-white" />
+            </div>
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">
+              Create New Password
+            </h2>
+            <p className="text-gray-600">
+              Your new password must be different from previous used passwords
+            </p>
+          </div>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div>
               <label
                 htmlFor="password"
-                className="block text-sm font-medium text-gray-700"
+                className="block text-sm font-semibold text-gray-700 mb-2"
               >
                 New Password
               </label>
-              <div className="mt-1 relative">
+              <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Lock className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   {...register("password")}
-                  type="password"
-                  className="appearance-none block w-full pl-10 px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter new password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="input-modern focus-ring pl-10 pr-12"
+                  placeholder="Enter your new password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                  ) : (
+                    <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                  )}
+                </button>
               </div>
+
+              {/* Password Strength Indicator */}
+              {password && (
+                <div className="mt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">
+                      Password Strength
+                    </span>
+                    <span
+                      className={`text-sm font-semibold ${passwordStrength.color}`}
+                    >
+                      {passwordStrength.label}
+                    </span>
+                  </div>
+                  <ProgressBar
+                    progress={(passwordStrength.score / 5) * 100}
+                    color={
+                      passwordStrength.score <= 2
+                        ? "error"
+                        : passwordStrength.score === 3
+                        ? "warning"
+                        : "success"
+                    }
+                    size="md"
+                    showPercentage={false}
+                    animated={true}
+                  />
+
+                  {/* Password Requirements */}
+                  <div className="mt-3 space-y-1">
+                    {[
+                      {
+                        check: password.length >= 8,
+                        text: "At least 8 characters",
+                      },
+                      {
+                        check: /[A-Z]/.test(password),
+                        text: "One uppercase letter",
+                      },
+                      {
+                        check: /[a-z]/.test(password),
+                        text: "One lowercase letter",
+                      },
+                      { check: /[0-9]/.test(password), text: "One number" },
+                      {
+                        check: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+                        text: "One special character",
+                      },
+                    ].map((req, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center space-x-2 text-xs"
+                      >
+                        {req.check ? (
+                          <Check className="h-3 w-3 text-green-500" />
+                        ) : (
+                          <X className="h-3 w-3 text-gray-400" />
+                        )}
+                        <span
+                          className={
+                            req.check ? "text-green-600" : "text-gray-500"
+                          }
+                        >
+                          {req.text}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {errors.password && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.password.message}
-                </p>
+                <div className="mt-2 flex items-center text-red-600">
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  <p className="text-sm">{errors.password.message}</p>
+                </div>
               )}
             </div>
 
             <div>
               <label
                 htmlFor="confirmPassword"
-                className="block text-sm font-medium text-gray-700"
+                className="block text-sm font-semibold text-gray-700 mb-2"
               >
                 Confirm New Password
               </label>
-              <div className="mt-1 relative">
+              <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Lock className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   {...register("confirmPassword")}
-                  type="password"
-                  className="appearance-none block w-full pl-10 px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Confirm new password"
+                  type={showConfirmPassword ? "text" : "password"}
+                  className="input-modern focus-ring pl-10 pr-12"
+                  placeholder="Confirm your new password"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                  ) : (
+                    <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                  )}
+                </button>
               </div>
               {errors.confirmPassword && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.confirmPassword.message}
-                </p>
+                <div className="mt-2 flex items-center text-red-600">
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  <p className="text-sm">{errors.confirmPassword.message}</p>
+                </div>
               )}
             </div>
 
-            <div>
+            <LoadingButton
+              type="submit"
+              loading={isLoading}
+              loadingText="Resetting Password..."
+              variant="success"
+              size="md"
+              fullWidth={true}
+              disabled={isLoading || passwordStrength.score < 3}
+            >
+              <CheckCircle className="h-5 w-5 mr-2" />
+              Reset Password
+            </LoadingButton>
+          </form>
+
+          {/* Back to Sign In */}
+          <div className="mt-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-4 bg-white text-gray-500">or</span>
+              </div>
+            </div>
+
+            <div className="mt-4 text-center">
               <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                onClick={() => navigate("/signin")}
+                className="inline-flex items-center text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors duration-200"
               >
-                {isLoading ? (
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
-                ) : (
-                  "Reset Password"
-                )}
+                <ArrowLeft className="h-4 w-4 mr-1" />
+                Back to Sign In
               </button>
             </div>
-          </form>
+          </div>
+
+          {/* Footer */}
+          <div className="mt-6 text-center">
+            <p className="text-xs text-gray-500">
+              Your password will be encrypted and stored securely
+            </p>
+            <div className="flex justify-center items-center mt-2 space-x-4">
+              <div className="flex items-center text-xs text-gray-500">
+                <Shield className="h-3 w-3 mr-1" />
+                AES Encrypted
+              </div>
+              <div className="flex items-center text-xs text-gray-500">
+                <CheckCircle className="h-3 w-3 mr-1" />
+                Secure Reset
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

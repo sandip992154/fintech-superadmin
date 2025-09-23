@@ -195,10 +195,13 @@ const authService = {
     }
   },
 
-  // Password reset request
-  forgotPassword: async (email) => {
+  // Password reset request - sends email with reset link
+  forgotPassword: async (email, baseUrl = window.location.origin) => {
     try {
-      const response = await api.post("/auth/forgot-password", { email });
+      const response = await api.post("/auth/forgot-password", {
+        email,
+        base_url: baseUrl,
+      });
       return response.data;
     } catch (error) {
       throw error;
@@ -206,11 +209,12 @@ const authService = {
   },
 
   // Reset password with token
-  resetPassword: async (token, newPassword) => {
+  resetPassword: async (token, newPassword, confirmPassword) => {
     try {
       const response = await api.post("/auth/reset-password", {
         token,
         new_password: newPassword,
+        confirm_password: confirmPassword,
       });
       return response.data;
     } catch (error) {
