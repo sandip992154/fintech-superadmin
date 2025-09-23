@@ -105,8 +105,8 @@ export const SignIn = () => {
     } catch (error) {
       console.error("OTP verification error:", error);
       toast.error(
-        error.response?.data?.message ||
-          error.message ||
+        error?.response?.data?.message ||
+          error?.message ||
           "Failed to verify OTP. Please try again."
       );
       if (error.response?.status === 401) {

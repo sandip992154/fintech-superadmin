@@ -39,6 +39,7 @@ import { QuickLinks } from "./pages/super/setup_tools/QuickLinks";
 import { Roles } from "./pages/super/roles_permissions/Roles";
 import { Permissions } from "./pages/super/roles_permissions/Permissions";
 import AccountPortalSettings from "./pages/super/account_settings/AccountPortalSettings";
+import KYCManagement from "./pages/KYCManagement";
 import { Admin } from "./pages/super/members/Admin";
 import { WhiteLabel } from "./pages/super/members/WhiteLabel";
 import { MasterDistributor } from "./pages/super/members/MasterDistributor";
@@ -234,6 +235,12 @@ const App = () => {
         {
           path: "profile/view",
           Component: AccountPortalSettings,
+        },
+
+        // KYC Management
+        {
+          path: "kyc/management",
+          Component: KYCManagement,
         },
 
         // members

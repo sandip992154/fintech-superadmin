@@ -26,6 +26,7 @@ const menuItems = [
     label: "Member",
     component: "",
     subItems: [
+      { label: "KYC Management", component: "kyc/management" },
       { label: "Admin", component: "members/admin" },
       { label: "White Label", component: "members/whitelabel" },
       { label: "Master Distributor", component: "members/mds" },
