@@ -18,6 +18,7 @@ import Dashboard from "./pages/super/Dashboard";
 import { SchemeManager } from "./pages/super/resources_tab/SchemeManger";
 import { CompanyProfile } from "./pages/super/resources_tab/CompanyProfile";
 import { CompanyManger } from "./pages/super/resources_tab/CompanyManger";
+import ResourceManagementDashboard from "./pages/super/resources_tab/ResourceManagementDashboard";
 import SuperAEPS from "./pages/super/agent_list/SuperAEPS";
 import SuperUTI from "./pages/super/agent_list/SuperUTI";
 import { TransferReturn } from "./pages/super/fund/TransferReturn";
@@ -108,6 +109,10 @@ const App = () => {
           Component: Dashboard,
         },
         // resources
+        {
+          path: "/resources",
+          Component: ResourceManagementDashboard,
+        },
         {
           path: "/resources/scheme-manager",
           Component: SchemeManager,

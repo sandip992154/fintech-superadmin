@@ -33,7 +33,7 @@ export const ForgotPassword = () => {
       setEmail(data.email);
       setEmailSent(true);
 
-      toast.success("📧 Password reset email sent! Check your inbox.", {
+      toast.success("� Password reset email sent! Check your inbox.", {
         position: "top-right",
         autoClose: 5000,
         hideProgressBar: false,
@@ -65,7 +65,7 @@ export const ForgotPassword = () => {
       <div className="w-full max-w-6xl">
         <div className="bg-white rounded-3xl shadow-2xl overflow-hidden flex min-h-[600px]">
           {/* Left Side - Services Display */}
-          <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-orange-500 to-red-600 relative p-8 lg:p-12">
+          <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 to-purple-700 relative p-8 lg:p-12">
             <div className="relative z-10 flex flex-col justify-center text-white w-full">
               {/* Company Logo and Title */}
               <div className="text-center mb-8">
@@ -87,15 +87,15 @@ export const ForgotPassword = () => {
               {/* Security Features */}
               <div className="space-y-4">
                 <div className="flex items-center space-x-3 p-3 bg-white/10 rounded-lg backdrop-blur-sm">
-                  <CheckCircle className="h-5 w-5 text-green-300" />
+                  <CheckCircle className="h-5 w-5 text-green-400" />
                   <span className="text-sm">Bank-grade Security</span>
                 </div>
                 <div className="flex items-center space-x-3 p-3 bg-white/10 rounded-lg backdrop-blur-sm">
-                  <CheckCircle className="h-5 w-5 text-green-300" />
+                  <CheckCircle className="h-5 w-5 text-green-400" />
                   <span className="text-sm">Encrypted Password Reset</span>
                 </div>
                 <div className="flex items-center space-x-3 p-3 bg-white/10 rounded-lg backdrop-blur-sm">
-                  <CheckCircle className="h-5 w-5 text-green-300" />
+                  <CheckCircle className="h-5 w-5 text-green-400" />
                   <span className="text-sm">24/7 Support Available</span>
                 </div>
               </div>
@@ -134,91 +134,123 @@ export const ForgotPassword = () => {
                       : "Enter your email address and we'll send you a password reset link"}
                   </p>
                 </div>
-
-                {!emailSent ? (
-                  <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-                    <div>
-                      <label
-                        htmlFor="email"
-                        className="block text-sm font-medium text-gray-700 mb-2"
-                      >
-                        Email Address
-                      </label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                        <input
-                          {...register("email")}
-                          type="email"
-                          id="email"
-                          className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all duration-200 text-gray-800 placeholder-gray-500"
-                          placeholder="Enter your email address"
-                        />
-                      </div>
-                      {errors.email && (
-                        <div className="mt-1 flex items-center text-red-600 text-sm">
-                          <AlertCircle className="h-4 w-4 mr-1" />
-                          <p>{errors.email.message}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    <LoadingButton
-                      type="submit"
-                      loading={isLoading}
-                      loadingText="Sending Reset Link..."
-                      className="w-full py-3 px-4 bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold rounded-lg hover:from-orange-600 hover:to-red-700 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all duration-200 flex items-center justify-center"
-                      disabled={isLoading}
-                    >
-                      <Send className="h-5 w-5 mr-2" />
-                      Send Reset Link
-                    </LoadingButton>
-                  </form>
-                ) : (
-                  <div className="space-y-5">
-                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                      <div className="flex items-center">
-                        <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
-                        <p className="text-sm text-green-700">
-                          Reset link sent successfully!
-                        </p>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        setEmailSent(false);
-                        setEmail("");
-                      }}
-                      className="w-full py-3 px-4 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all duration-200"
-                    >
-                      Send Another Reset Link
-                    </button>
+          {!emailSent ? (
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+              <div>
+                <label
+                  htmlFor="email"
+                  className="block text-sm font-semibold text-gray-700 mb-2"
+                >
+                  Email Address
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mail className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    {...register("email")}
+                    type="email"
+                    className="input-modern focus-ring pl-10 pr-4"
+                    placeholder="Enter your registered email address"
+                  />
+                </div>
+                {errors.email && (
+                  <div className="mt-2 flex items-center text-red-600">
+                    <AlertCircle className="h-4 w-4 mr-1" />
+                    <p className="text-sm">{errors.email.message}</p>
                   </div>
                 )}
 
-                {/* Back to Login */}
-                <div className="text-center">
-                  <button
-                    onClick={() => navigate("/signin")}
-                    className="flex items-center justify-center w-full text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors duration-200"
-                  >
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back to Login
-                  </button>
-                </div>
-
-                {/* Footer */}
-                <div className="mt-8 text-center">
-                  <div className="mb-4">
-                    <h4 className="text-sm font-semibold text-gray-700 mb-2">
-                      BANDARU SOFTWARE SOLUTIONS PVT LTD
-                    </h4>
-                    <div className="space-y-1 text-xs text-gray-600">
-                      <p>📧 contact@bandarupay.com</p>
-                      <p>📞 Support: +91 7997991699</p>
+                {/* Email Info */}
+                <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-start space-x-2">
+                    <Mail className="h-4 w-4 text-blue-600 mt-0.5" />
+                    <div>
+                      <p className="text-xs text-blue-700 font-medium">
+                        Reset Link
+                      </p>
+                      <p className="text-xs text-blue-600">
+                        We'll send a secure password reset link to your
+                        registered email address.
+                      </p>
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <LoadingButton
+                type="submit"
+                loading={isLoading}
+                loadingText="Sending..."
+                variant="warning"
+                size="md"
+                fullWidth={true}
+                disabled={isLoading}
+              >
+                <Send className="h-5 w-5 mr-2" />
+                Send Reset Link
+              </LoadingButton>
+            </form>
+          ) : (
+            <div className="space-y-6">
+              <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+                <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-3" />
+                <h3 className="text-lg font-semibold text-green-800 mb-2">
+                  Email Sent Successfully!
+                </h3>
+                <p className="text-sm text-green-700">
+                  Check your inbox and click the reset link to create a new
+                  password.
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  setEmailSent(false);
+                  setEmail("");
+                }}
+                className="w-full btn-secondary"
+              >
+                Send Another Email
+              </button>
+            </div>
+          )}
+
+          {/* Back to Login */}
+          <div className="mt-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-4 bg-white text-gray-500">or</span>
+              </div>
+            </div>
+
+            <div className="mt-4 text-center">
+              <button
+                onClick={() => navigate("/signin")}
+                className="inline-flex items-center text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors duration-200"
+              >
+                <ArrowLeft className="h-4 w-4 mr-1" />
+                Back to Sign In
+              </button>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="mt-6 text-center">
+            <p className="text-xs text-gray-500">
+              Need help? Contact support for assistance
+            </p>
+            <div className="flex justify-center items-center mt-2 space-x-4">
+              <div className="flex items-center text-xs text-gray-500">
+                <Mail className="h-3 w-3 mr-1" />
+                Secure Email
+              </div>
+              <div className="flex items-center text-xs text-gray-500">
+                <CheckCircle className="h-3 w-3 mr-1" />
+                Fast Reset
               </div>
             </div>
           </div>

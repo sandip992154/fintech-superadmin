@@ -1,0 +1,172 @@
+/**
+ * Custom CSS for Resource Management Components
+ * ============================================
+ * 
+ * Additional styles for responsive design and scroll behavior
+ */
+
+/* Custom scrollbar styling */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #9ca3af #f3f4f6;
+}
+
+.dark .scrollbar-thin {
+  scrollbar-color: #6b7280 #374151;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 3px;
+}
+
+.dark .scrollbar-thin::-webkit-scrollbar-track {
+  background: #374151;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #9ca3af;
+  border-radius: 3px;
+  border: 1px solid #f3f4f6;
+}
+
+.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #6b7280;
+  border: 1px solid #374151;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: #6b7280;
+}
+
+.dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
+}
+
+/* Responsive container styles */
+.resource-container {
+  height: calc(100vh - 2rem);
+  max-height: calc(100vh - 2rem);
+}
+
+.resource-sidebar {
+  min-width: 16rem;
+  max-width: 18rem;
+}
+
+@media (max-width: 1024px) {
+  .resource-sidebar {
+    min-width: 14rem;
+    max-width: 14rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .resource-container {
+    height: calc(100vh - 1rem);
+    max-height: calc(100vh - 1rem);
+  }
+
+  .resource-sidebar {
+    position: absolute;
+    z-index: 50;
+    height: 100%;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease-in-out;
+  }
+
+  .resource-sidebar.open {
+    transform: translateX(0);
+  }
+}
+
+/* Text overflow and responsiveness */
+.text-responsive {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+/* Responsive grid adjustments */
+.responsive-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+@media (max-width: 640px) {
+  .responsive-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
+/* Modal and form responsive styles */
+.modal-responsive {
+  max-height: calc(100vh - 4rem);
+  max-width: calc(100vw - 2rem);
+  overflow-y: auto;
+}
+
+@media (max-width: 768px) {
+  .modal-responsive {
+    max-height: calc(100vh - 2rem);
+    max-width: calc(100vw - 1rem);
+    margin: 0.5rem;
+  }
+}
+
+/* Tab navigation responsiveness */
+.tab-navigation {
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.tab-navigation::-webkit-scrollbar {
+  display: none;
+}
+
+/* Card responsiveness */
+.resource-card {
+  transition: all 0.2s ease-in-out;
+}
+
+.resource-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Loading states */
+.loading-overlay {
+  backdrop-filter: blur(2px);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.dark .loading-overlay {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+/* Utility classes for responsive spacing */
+.spacing-responsive {
+  padding: 1rem;
+}
+
+@media (min-width: 768px) {
+  .spacing-responsive {
+    padding: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .spacing-responsive {
+    padding: 2rem;
+  }
+}
