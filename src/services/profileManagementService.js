@@ -176,6 +176,7 @@ class ProfileManagementService {
       gender: profileData.gender || "",
       pinCode: profileData.pinCode || "",
       address: profileData.address || "",
+      profile_photo: profileData.profile_photo || null,
     };
   }
 

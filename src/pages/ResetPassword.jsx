@@ -68,24 +68,27 @@ export const ResetPassword = () => {
   const onSubmit = async (data) => {
     setIsLoading(true);
     try {
-      await authService.resetPassword({
+      await authService.resetPassword(
         token,
-        new_password: data.password,
-        confirm_password: data.confirmPassword,
-      });
+        data.password,
+        data.confirmPassword
+      );
 
       setResetSuccess(true);
-      toast.success("🎉 Password reset successful! You can now sign in with your new password.", {
-        position: "top-right",
-        autoClose: 5000,
-      });
+      toast.success(
+        "🎉 Password reset successful! You can now sign in with your new password.",
+        {
+          position: "top-right",
+          autoClose: 5000,
+        }
+      );
 
       setTimeout(() => {
         navigate("/signin");
       }, 3000);
     } catch (error) {
       let errorMessage = "❌ Failed to reset password. Please try again.";
-      
+
       if (error.response?.data?.detail) {
         errorMessage = error.response.data.detail;
       }
@@ -261,7 +264,11 @@ export const ResetPassword = () => {
                           onClick={() => setShowPassword(!showPassword)}
                           className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                         >
-                          {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                          {showPassword ? (
+                            <EyeOff className="h-5 w-5" />
+                          ) : (
+                            <Eye className="h-5 w-5" />
+                          )}
                         </button>
                       </div>
                       {errors.password && (
@@ -270,20 +277,28 @@ export const ResetPassword = () => {
                           <p>{errors.password.message}</p>
                         </div>
                       )}
-                      
+
                       {/* Password Strength Indicator */}
                       {watchedPassword && (
                         <div className="mt-2">
                           <div className="flex items-center justify-between text-sm mb-1">
-                            <span className="text-gray-600">Password Strength:</span>
-                            <span className={getStrengthColor(passwordStrength)}>
+                            <span className="text-gray-600">
+                              Password Strength:
+                            </span>
+                            <span
+                              className={getStrengthColor(passwordStrength)}
+                            >
                               {getStrengthText(passwordStrength)}
                             </span>
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-2">
                             <div
-                              className={`h-2 rounded-full transition-all duration-300 ${getStrengthBarColor(passwordStrength)}`}
-                              style={{ width: `${(passwordStrength / 5) * 100}%` }}
+                              className={`h-2 rounded-full transition-all duration-300 ${getStrengthBarColor(
+                                passwordStrength
+                              )}`}
+                              style={{
+                                width: `${(passwordStrength / 5) * 100}%`,
+                              }}
                             ></div>
                           </div>
                         </div>
@@ -304,10 +319,16 @@ export const ResetPassword = () => {
                         />
                         <button
                           type="button"
-                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          onClick={() =>
+                            setShowConfirmPassword(!showConfirmPassword)
+                          }
                           className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                         >
-                          {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                          {showConfirmPassword ? (
+                            <EyeOff className="h-5 w-5" />
+                          ) : (
+                            <Eye className="h-5 w-5" />
+                          )}
                         </button>
                       </div>
                       {errors.confirmPassword && (
@@ -320,7 +341,9 @@ export const ResetPassword = () => {
 
                     {/* Password Requirements */}
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <h4 className="text-sm font-medium text-blue-800 mb-2">Password Requirements:</h4>
+                      <h4 className="text-sm font-medium text-blue-800 mb-2">
+                        Password Requirements:
+                      </h4>
                       <div className="space-y-1 text-xs text-blue-700">
                         <div className="flex items-center">
                           {watchedPassword.length >= 8 ? (

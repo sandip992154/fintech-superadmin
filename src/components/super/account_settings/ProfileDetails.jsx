@@ -11,6 +11,8 @@ const ProfileDetails = ({
   const [formData, setFormData] = useState(initialData || {});
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
+  console.log(initialData);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (onSubmit) {
@@ -87,7 +89,7 @@ const ProfileDetails = ({
           {formData.profilePhoto && (
             <div className="relative">
               <img
-                src={formData.profilePhoto}
+                src={formData.profile_photo}
                 alt="Profile"
                 className="w-20 h-20 rounded-full object-cover border-2 border-gray-300"
               />

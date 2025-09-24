@@ -8,23 +8,26 @@ import {
   Loader,
 } from "lucide-react";
 
+// Default options for all notifications
+const DEFAULT_OPTIONS = {
+  position: "top-right",
+  autoClose: 5000,
+  hideProgressBar: false,
+  closeOnClick: true,
+  pauseOnHover: true,
+  draggable: true,
+  progress: undefined,
+};
+
 // Custom toast notification service with modern styling
 class ModernNotificationService {
   constructor() {
-    this.defaultOptions = {
-      position: "top-right",
-      autoClose: 5000,
-      hideProgressBar: false,
-      closeOnClick: true,
-      pauseOnHover: true,
-      draggable: true,
-      progress: undefined,
-    };
+    this.defaultOptions = DEFAULT_OPTIONS;
   }
 
   // Success notification
   success(message, options = {}) {
-    const finalOptions = { ...this.defaultOptions, ...options };
+    const finalOptions = { ...DEFAULT_OPTIONS, ...options };
 
     return toast.success(
       <div className="flex items-center space-x-3">
@@ -43,7 +46,7 @@ class ModernNotificationService {
   // Error notification
   error(message, options = {}) {
     const finalOptions = {
-      ...this.defaultOptions,
+      ...DEFAULT_OPTIONS,
       autoClose: 7000, // Longer duration for errors
       ...options,
     };
@@ -64,7 +67,7 @@ class ModernNotificationService {
 
   // Warning notification
   warning(message, options = {}) {
-    const finalOptions = { ...this.defaultOptions, ...options };
+    const finalOptions = { ...DEFAULT_OPTIONS, ...options };
 
     return toast.warning(
       <div className="flex items-center space-x-3">
@@ -82,7 +85,7 @@ class ModernNotificationService {
 
   // Info notification
   info(message, options = {}) {
-    const finalOptions = { ...this.defaultOptions, ...options };
+    const finalOptions = { ...DEFAULT_OPTIONS, ...options };
 
     return toast.info(
       <div className="flex items-center space-x-3">
@@ -101,7 +104,7 @@ class ModernNotificationService {
   // Loading notification
   loading(message, options = {}) {
     const finalOptions = {
-      ...this.defaultOptions,
+      ...DEFAULT_OPTIONS,
       autoClose: false,
       closeOnClick: false,
       ...options,
@@ -174,7 +177,7 @@ class ModernNotificationService {
 
   // Custom notification with title and description
   custom({ type = "info", title, message, icon, options = {} }) {
-    const finalOptions = { ...this.defaultOptions, ...options };
+    const finalOptions = { ...DEFAULT_OPTIONS, ...options };
 
     const icons = {
       success: CheckCircle,

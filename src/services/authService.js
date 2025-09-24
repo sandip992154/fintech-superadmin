@@ -5,7 +5,7 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 // Create API instance with default config
 const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 10000,
+  // timeout: 20000,
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
@@ -52,6 +52,20 @@ api.interceptors.response.use(
     // Handle authentication errors
     if (error.response?.status === 401) {
       const originalRequest = error.config;
+
+      // Don't try token refresh for login endpoints - pass the error directly
+      if (
+        originalRequest.url?.includes("/auth/login") ||
+        originalRequest.url?.includes("/auth/login-otp-verify")
+      ) {
+        // For login endpoints, extract and throw the actual error message
+        const errorMessage =
+          error.response?.data?.detail ||
+          error.response?.data?.message ||
+          "Authentication failed";
+        throw new Error(errorMessage);
+      }
+
       const refreshToken = localStorage.getItem("refresh_token");
 
       // Try token refresh if we have a refresh token and haven't tried yet
@@ -94,14 +108,32 @@ const authService = {
       return response.data;
     } catch (error) {
       console.error("SuperAdminAuthService: Login error:", error);
-      if (error.response?.data?.detail) {
+
+      // Handle different error types
+      if (error.response?.status === 401) {
+        const errorMessage =
+          error.response?.data?.detail || "Invalid credentials";
+        throw new Error(errorMessage);
+      } else if (error.response?.status === 403) {
+        const errorMessage =
+          error.response?.data?.detail || "Account access denied";
+        throw new Error(errorMessage);
+      } else if (error.response?.status === 422) {
+        const errorMessage = Array.isArray(error.response.data.detail)
+          ? error.response.data.detail.join(", ")
+          : error.response.data.detail || "Validation error";
+        throw new Error(errorMessage);
+      } else if (error.response?.data?.detail) {
         throw new Error(
           Array.isArray(error.response.data.detail)
             ? error.response.data.detail.join(", ")
             : error.response.data.detail
         );
+      } else if (error.message) {
+        throw new Error(error.message);
       }
-      throw error;
+
+      throw new Error("An unexpected error occurred during login");
     }
   },
 

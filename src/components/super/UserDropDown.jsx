@@ -5,6 +5,7 @@ import { useAuth } from "../../contexts/AuthContext";
 
 const UserDropdown = ({ ref }) => {
   const { user, logout } = useAuth();
+
   return (
     <div
       ref={ref}
@@ -14,7 +15,10 @@ const UserDropdown = ({ ref }) => {
       <div className="flex items-center space-x-3">
         <div className="relative">
           <img
-            src="https://randomuser.me/api/portraits/men/32.jpg"
+            src={
+              user.profile_photo ||
+              "https://randomuser.me/api/portraits/men/32.jpg"
+            }
             alt="User"
             className="w-12 h-12 rounded-full object-cover"
           />
@@ -22,10 +26,10 @@ const UserDropdown = ({ ref }) => {
         </div>
         <div>
           <h4 className="font-semibold">Hello {user.full_name}</h4>
-          <p className="text-sm text-gray-300 dark:text-gray-500">
+          <p className="text-sm text-gray-800 dark:text-gray-500">
             Super Admin
           </p>
-          <p className="text-sm text-gray-300 dark:text-gray-500">
+          <p className="text-sm text-gray-800 dark:text-gray-500">
             UserId -{user.user_code}
           </p>
         </div>

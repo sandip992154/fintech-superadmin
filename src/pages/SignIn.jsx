@@ -33,7 +33,9 @@ export const SignIn = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [otpTimer, setOtpTimer] = useState(0);
-  const { login, verifyOtp, isOtpSent, setIsOtpSent } = useAuth();
+  const [storedCredentials, setStoredCredentials] = useState(null); // Store credentials for OTP resend
+  const { login, verifyOtp, isOtpSent, setIsOtpSent, pendingIdentifier } =
+    useAuth();
   const navigate = useNavigate();
 
   // OTP Timer
@@ -69,6 +71,9 @@ export const SignIn = () => {
     try {
       setLoading(true);
 
+      // Store credentials for resend OTP functionality
+      setStoredCredentials(data);
+
       // Convert to FormData as backend expects form data
       const formData = new FormData();
       formData.append("username", data.identifier);
@@ -87,26 +92,44 @@ export const SignIn = () => {
     } catch (error) {
       console.error("Login error:", error);
 
-      // Friendly error messages
-      if (error.message?.includes("Invalid credentials")) {
+      // Handle specific backend error messages
+      if (error.message?.includes("Incorrect password")) {
         authNotifications.loginError(
-          "Invalid email/phone/code or password. Please check your credentials."
+          "Incorrect password. Please check your password and try again."
+        );
+      } else if (error.message?.includes("User not found")) {
+        authNotifications.loginError(
+          "User not found. Please check your email/phone/code and try again."
+        );
+      } else if (error.message?.includes("incorrect credentials")) {
+        authNotifications.loginError(
+          "Invalid credentials. Please check your login details."
+        );
+      } else if (error.message?.includes("inactive")) {
+        authNotifications.loginError(
+          "Your account is inactive. Please contact support."
         );
       } else if (error.message?.includes("OTP sent")) {
         authNotifications.otpSent("email");
         setOtpTimer(120);
         resetOtpForm();
         return;
-      } else if (error.message?.includes("Account locked")) {
+      } else if (
+        error.message?.includes("Account locked") ||
+        error.message?.includes("too many attempts")
+      ) {
         authNotifications.loginError(
-          "Account temporarily locked. Please try again later or contact support."
+          "Account temporarily locked due to too many attempts. Please try again later."
         );
       } else if (error.message?.includes("Network")) {
         authNotifications.loginError(
           "Network error. Please check your connection and try again."
         );
       } else {
-        authNotifications.loginError();
+        // Show the actual backend error message if available, otherwise a generic message
+        authNotifications.loginError(
+          error.message || "Login failed. Please try again."
+        );
       }
     } finally {
       setLoading(false);
@@ -120,7 +143,7 @@ export const SignIn = () => {
 
       authNotifications.loginSuccess("Welcome back!");
 
-      navigate(response.redirect_path || "/dashboard");
+      navigate("/");
     } catch (error) {
       console.error("OTP verification error:", error);
 
@@ -145,16 +168,26 @@ export const SignIn = () => {
   const resendOtp = async () => {
     try {
       setLoading(true);
-      // Trigger the login again to resend OTP
-      const loginForm = document.querySelector("form");
-      const formData = new FormData(loginForm);
 
-      await login(formData);
+      // Use the stored credentials to resend OTP
+      if (!storedCredentials) {
+        throw new Error("No stored credentials for resend");
+      }
+
+      // Convert to FormData as backend expects form data
+      const formData = new FormData();
+      formData.append("username", storedCredentials.identifier);
+      formData.append("password", storedCredentials.password);
+
+      const response = await login(formData);
+
+      // Reset OTP timer and form
       setOtpTimer(120);
       resetOtpForm();
 
       authNotifications.otpSent("email");
     } catch (error) {
+      console.error("Resend OTP error:", error);
       authNotifications.loginError("Failed to resend OTP. Please try again.");
     } finally {
       setLoading(false);
@@ -170,11 +203,11 @@ export const SignIn = () => {
             <div className="relative z-10 flex flex-col justify-center text-white w-full">
               {/* Company Logo and Title */}
               <div className="text-center mb-8">
-                <div className="w-20 h-20 mx-auto mb-4 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                <div className="w-30 h-30 mx-auto mb-4 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
                   <img
                     src="/bandaru_pay_logo.png"
                     alt="Bandaru Pay"
-                    className="h-12 w-auto"
+                    className="h-24 w-auto"
                   />
                 </div>
                 <h1 className="text-3xl lg:text-4xl font-bold mb-2">
@@ -272,7 +305,7 @@ export const SignIn = () => {
               <div className="space-y-6">
                 {/* Header */}
                 <div className="text-center">
-                  <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
+                  <div className="hidden w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full lg:flex items-center justify-center">
                     <img
                       src="/bandaru_pay_logo.png"
                       alt="Bandaru Pay"
@@ -288,25 +321,6 @@ export const SignIn = () => {
                       : "Welcome to Bandaru Pay!"}
                   </p>
                 </div>
-
-                {/* Fixed SuperAdmin Credentials Display */}
-                {!isOtpSent && (
-                  <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <h3 className="text-sm font-semibold text-blue-800 mb-2">
-                      Fixed SuperAdmin Credentials:
-                    </h3>
-                    <div className="space-y-1 text-sm text-blue-700">
-                      <p>
-                        <span className="font-medium">Username:</span>{" "}
-                        superadmin
-                      </p>
-                      <p>
-                        <span className="font-medium">Password:</span>{" "}
-                        superadmin123
-                      </p>
-                    </div>
-                  </div>
-                )}
 
                 {!isOtpSent ? (
                   <form
@@ -369,8 +383,8 @@ export const SignIn = () => {
                     </div>
 
                     {/* Auto-Fill and Forgot Password */}
-                    <div className="flex items-center justify-between text-sm">
-                      <label className="flex items-center text-gray-600">
+                    <div className="flex items-center justify-end text-sm">
+                      {/* <label className="flex items-center text-gray-600">
                         <input
                           type="checkbox"
                           checked={rememberMe}
@@ -378,11 +392,11 @@ export const SignIn = () => {
                           className="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                         />
                         Auto-Fill Credentials
-                      </label>
+                      </label> */}
                       <button
                         type="button"
                         onClick={() => navigate("/forgot-password")}
-                        className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                        className="self-end text-blue-600 hover:text-blue-800 font-medium transition-colors"
                       >
                         Forgot Password?
                       </button>
