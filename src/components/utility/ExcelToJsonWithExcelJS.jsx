@@ -80,6 +80,7 @@ const ExcelToJsonWithExcelJS = ({
       const headers = [
         "provider",
         "type",
+        "admin",
         "whitelable",
         "md",
         "distributor",
@@ -87,16 +88,17 @@ const ExcelToJsonWithExcelJS = ({
       ];
       worksheet.addRow(headers);
 
-      const data = provider.map((row) => [row, , , , ,]);
+      const data = provider.map((row) => [
+        row,
+        "Percentage",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+      ]);
 
-      // Data Rows
-      //   const data = [
-      //     ["BSNL TOPUP", "Percent", 3.5, 3, 2.5, 2],
-      //     ["BSNL VALIDITY", "Percent", 3.5, 3, 2.5, 2],
-      //     ["JIORECH", "Percent", 0.8, 0.7, 0.6, 0.5],
-      //     ["VI", "Percent", 3.5, 3, 2.5, 2],
-      //     ["AIRTEL", "Percent", 0.8, 0.7, 0.6, 0.5],
-      //   ];
       data.forEach((row) => worksheet.addRow(row));
 
       // Add dropdown (Data Validation) in column B (TYPE)
@@ -104,7 +106,7 @@ const ExcelToJsonWithExcelJS = ({
         worksheet.getCell(`B${i}`).dataValidation = {
           type: "list",
           allowBlank: false,
-          formulae: ['"Percent,Flat"'],
+          formulae: ['"Percentage,Fixed"'],
         };
       }
 

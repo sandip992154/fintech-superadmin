@@ -18,7 +18,6 @@ import Dashboard from "./pages/super/Dashboard";
 import { SchemeManager } from "./pages/super/resources_tab/SchemeManger";
 import { CompanyProfile } from "./pages/super/resources_tab/CompanyProfile";
 import { CompanyManger } from "./pages/super/resources_tab/CompanyManger";
-import ResourceManagementDashboard from "./pages/super/resources_tab/ResourceManagementDashboard";
 import SuperAEPS from "./pages/super/agent_list/SuperAEPS";
 import SuperUTI from "./pages/super/agent_list/SuperUTI";
 import { TransferReturn } from "./pages/super/fund/TransferReturn";
@@ -64,6 +63,7 @@ import CreateAdmin from "./components/super/members/admin/CreateAdmin";
 import MemberAdminLayout from "./layouts/members/MemberAdminLayout";
 import CreateCutsomerBYRetailer from "./components/super/members/retailer/CreateCustomerBYRetailer";
 import { SignIn } from "./pages/SignIn";
+import ServiceOperatorManager from "./components/super/resource_tab/ServiceOperatorManager";
 
 // admin
 
@@ -110,12 +110,12 @@ const App = () => {
         },
         // resources
         {
-          path: "/resources",
-          Component: ResourceManagementDashboard,
-        },
-        {
           path: "/resources/scheme-manager",
           Component: SchemeManager,
+        },
+        {
+          path: "/resources/service-manager",
+          Component: ServiceOperatorManager,
         },
         {
           path: "/resources/company",

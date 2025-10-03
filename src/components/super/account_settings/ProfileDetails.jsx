@@ -86,7 +86,7 @@ const ProfileDetails = ({
       <div className="mb-6">
         <label className="block text-sm mb-2">Profile Photo</label>
         <div className="flex items-center space-x-4">
-          {formData.profilePhoto && (
+          {formData.profile_photo && (
             <div className="relative">
               <img
                 src={formData.profile_photo}

@@ -3,7 +3,7 @@ import FilterField from "./FilterField";
 const FilterBar = ({ fields, onSearch }) => {
   return (
     <div className="py-3 rounded-md">
-      <div className="flex flex-wrap items-end gap-4">
+      <div className="flex flex-wrap items-start justify-start gap-4">
         {fields.map((field) => (
           <div key={field.name} className="flex-1 min-w-[150px]">
             <FilterField

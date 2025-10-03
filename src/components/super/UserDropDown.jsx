@@ -6,6 +6,8 @@ import { useAuth } from "../../contexts/AuthContext";
 const UserDropdown = ({ ref }) => {
   const { user, logout } = useAuth();
 
+  console.log("user", user);
+
   return (
     <div
       ref={ref}

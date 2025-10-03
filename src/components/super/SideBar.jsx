@@ -40,6 +40,7 @@ const menuItems = [
     label: "Resources",
     subItems: [
       { label: "Scheme Manager", component: "/resources/scheme-manager" },
+      { label: "Service Manager", component: "/resources/service-manager" },
       { label: "Company", component: "/resources/company" },
       { label: "Company Profile", component: "/resources/company-profile" },
     ],

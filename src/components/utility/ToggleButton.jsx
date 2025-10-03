@@ -1,9 +1,13 @@
-export const ToggleButton = ({ row, onchange = () => {} }) => {
+export const ToggleButton = ({ row, onchange = () => {}, checked }) => {
+  // Determine the checked state - use checked prop if provided, otherwise fallback to row.status or row.is_active
+  const isChecked =
+    checked !== undefined ? checked : row?.status ?? row?.is_active ?? false;
+
   return (
     <label className="relative inline-flex items-center cursor-pointer">
       <input
         type="checkbox"
-        checked={row?.status}
+        checked={Boolean(isChecked)}
         onChange={onchange}
         className="sr-only peer"
       />
