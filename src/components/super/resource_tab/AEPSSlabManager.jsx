@@ -28,6 +28,32 @@ const AEPSSlabManager = ({ commissionId, schemeId, onClose = () => {} }) => {
   const { hasCommissionPermission, canEditCommissionField, userRole } =
     useRolePermissions();
 
+  // Early return if no commission ID is provided
+  if (!commissionId) {
+    return (
+      <div className="max-w-7xl mx-auto p-6">
+        <div className="text-center py-8">
+          <div className="text-yellow-600 dark:text-yellow-400 mb-4">
+            <FaExclamationTriangle className="mx-auto h-12 w-12" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+            Commission Required
+          </h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
+            AEPS slabs can only be managed for existing commissions. Please save
+            the commission first, then manage its slabs.
+          </p>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const [slabs, setSlabs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -40,7 +66,6 @@ const AEPSSlabManager = ({ commissionId, schemeId, onClose = () => {} }) => {
   // Get editable fields based on user role
   const editableFields = useMemo(() => {
     const allFields = [
-      "superadmin",
       "admin",
       "whitelabel",
       "masterdistributor",
@@ -56,7 +81,6 @@ const AEPSSlabManager = ({ commissionId, schemeId, onClose = () => {} }) => {
     () => ({
       slab_min: 0,
       slab_max: 1000,
-      superadmin: 0,
       admin: 0,
       whitelabel: 0,
       masterdistributor: 0,
@@ -116,7 +140,6 @@ const AEPSSlabManager = ({ commissionId, schemeId, onClose = () => {} }) => {
 
       // Validate commission hierarchy (parent >= child)
       const roles = [
-        "superadmin",
         "admin",
         "whitelabel",
         "masterdistributor",
@@ -352,18 +375,21 @@ const AEPSSlabManager = ({ commissionId, schemeId, onClose = () => {} }) => {
           </p>
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex  items-center space-x-3">
           {hasCommissionPermission("create") && (
             <button
               onClick={handleAddSlab}
-              className="btn-primary"
+              className="flex gap-2 p-2 items-center rounded btn-primary"
               disabled={loading || saving || newSlab}
             >
               <FaPlus className="mr-2" />
               Add Slab
             </button>
           )}
-          <button onClick={onClose} className="btn-secondary">
+          <button
+            onClick={onClose}
+            className="flex gap-2  items-center !p-2 !text-xl btn-secondary"
+          >
             <FaTimes className="mr-2" />
             Close
           </button>

@@ -447,6 +447,43 @@ class SchemeManagementService {
   }
 
   /**
+   * Get commissions for a specific scheme and service type
+   * Used for editing existing commissions
+   */
+  async getCommissionsBySchemeAndService(schemeId, serviceType) {
+    try {
+      if (!schemeId) {
+        throw new Error("Scheme ID is required");
+      }
+      if (!serviceType) {
+        throw new Error("Service type is required");
+      }
+
+      const response = await this.apiCall(
+        `/schemes/${schemeId}/commissions?service=${serviceType}`
+      );
+
+      return response.entries || response.items || response || [];
+    } catch (error) {
+      console.error(
+        `Error fetching commissions for scheme ${schemeId} and service ${serviceType}:`,
+        error
+      );
+      // Return empty array if no commissions found (404) or other errors
+      if (
+        error.message.includes("404") ||
+        error.message.includes("Not Found")
+      ) {
+        console.log(
+          `No existing commissions found for scheme ${schemeId} and service ${serviceType}`
+        );
+        return [];
+      }
+      throw new Error(`Failed to fetch commissions: ${error.message}`);
+    }
+  }
+
+  /**
    * Create new commission with enhanced error handling
    */
   async createCommission(commissionData) {
@@ -536,6 +573,120 @@ class SchemeManagementService {
     } catch (error) {
       console.error("Error bulk creating commissions:", error);
       throw new Error(`Failed to bulk create commissions: ${error.message}`);
+    }
+  }
+
+  /**
+   * Bulk update existing commissions with enhanced error handling
+   */
+  async bulkUpdateCommissions(commissionsData) {
+    try {
+      if (!commissionsData) {
+        throw new Error("Commissions data is required");
+      }
+
+      if (!commissionsData.scheme_id) {
+        throw new Error("Scheme ID is required");
+      }
+
+      // Extract scheme_id for path and remove it from body
+      const { scheme_id, ...bodyData } = commissionsData;
+
+      const result = await this.apiCall(
+        `/schemes/${scheme_id}/commissions/bulk-update`,
+        {
+          method: "PUT",
+          body: JSON.stringify(bodyData),
+        }
+      );
+
+      return result;
+    } catch (error) {
+      console.error("Error bulk updating commissions:", error);
+      throw new Error(`Failed to bulk update commissions: ${error.message}`);
+    }
+  }
+
+  /**
+   * Bulk create and update commissions (mixed operations) with enhanced error handling
+   */
+  async bulkCreateAndUpdateCommissions(commissionsData) {
+    try {
+      if (!commissionsData) {
+        throw new Error("Commissions data is required");
+      }
+
+      if (!commissionsData.scheme_id) {
+        throw new Error("Scheme ID is required");
+      }
+
+      // Separate create and update entries
+      const createEntries = commissionsData.entries.filter(
+        (entry) => !entry.isExisting
+      );
+      const updateEntries = commissionsData.entries.filter(
+        (entry) => entry.isExisting
+      );
+
+      const results = {
+        total_entries: commissionsData.entries.length,
+        successful_entries: 0,
+        failed_entries: 0,
+        created_entries: 0,
+        updated_entries: 0,
+        errors: [],
+      };
+
+      // Process creates if any
+      if (createEntries.length > 0) {
+        try {
+          const createData = {
+            ...commissionsData,
+            entries: createEntries,
+          };
+          const createResult = await this.bulkCreateCommissions(createData);
+
+          results.successful_entries += createResult.successful_entries || 0;
+          results.failed_entries += createResult.failed_entries || 0;
+          results.created_entries +=
+            createResult.created_entries ||
+            createResult.successful_entries ||
+            0;
+          results.errors.push(...(createResult.errors || []));
+        } catch (error) {
+          results.failed_entries += createEntries.length;
+          results.errors.push(`Bulk create failed: ${error.message}`);
+        }
+      }
+
+      // Process updates if any
+      if (updateEntries.length > 0) {
+        try {
+          const updateData = {
+            ...commissionsData,
+            entries: updateEntries,
+          };
+          const updateResult = await this.bulkUpdateCommissions(updateData);
+
+          results.successful_entries += updateResult.successful_entries || 0;
+          results.failed_entries += updateResult.failed_entries || 0;
+          results.updated_entries +=
+            updateResult.updated_entries ||
+            updateResult.successful_entries ||
+            0;
+          results.errors.push(...(updateResult.errors || []));
+        } catch (error) {
+          results.failed_entries += updateEntries.length;
+          results.errors.push(`Bulk update failed: ${error.message}`);
+        }
+      }
+
+      return results;
+    } catch (error) {
+      console.error("Error bulk creating and updating commissions:", error);
+      throw new Error(
+        `Failed to bulk create and update commissions: ${error.message}`
+      );
     }
   }
 

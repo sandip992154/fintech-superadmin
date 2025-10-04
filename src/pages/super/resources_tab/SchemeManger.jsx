@@ -74,6 +74,8 @@ export const SchemeManager = () => {
       { label: "DTH Recharge", modalKey: "DTHRecharge" },
       { label: "Bill Payments", modalKey: "BillPayments" },
       { label: "AEPS", modalKey: "AEPS" },
+      { label: "DMT", modalKey: "DMT" },
+      { label: "Micro ATM", modalKey: "MicroATM" },
     ],
     []
   );
