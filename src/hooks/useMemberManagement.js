@@ -1,33 +1,39 @@
-/**
- * Enhanced useMemberManagement Hook
- * Optimized custom hook for managing member operations with role-based access
- */
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import memberManagementService from "../services/memberManagementService.js";
+﻿import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import memberService from "../services/memberManagementService.js";
 
 export const useMemberManagement = (initialRole = null, currentUser = null) => {
-  // ===== State Management =====
+  // Early return for invalid parameters
+  if (typeof initialRole === "object" && initialRole !== null) {
+    console.warn(
+      "useMemberManagement: initialRole should be a string, received object. Using null."
+    );
+    initialRole = null;
+  }
+
+  // Core Data States
   const [members, setMembers] = useState([]);
   const [schemes, setSchemes] = useState([]);
   const [availableParents, setAvailableParents] = useState([]);
+  const [locationOptions, setLocationOptions] = useState([]);
   const [dashboardStats, setDashboardStats] = useState(null);
 
-  // Loading states
+  // Loading States
   const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [schemesLoading, setSchemesLoading] = useState(false);
   const [parentsLoading, setParentsLoading] = useState(false);
-  const [dashboardLoading, setDashboardLoading] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
 
-  // Error states
+  // Error States
   const [error, setError] = useState(null);
   const [actionError, setActionError] = useState(null);
 
-  // Enhanced pagination and filters
+  // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalMembers, setTotalMembers] = useState(0);
   const [pageSize] = useState(20);
+
+  // Filter States
   const [filters, setFilters] = useState({
     role: initialRole,
     search: "",
@@ -38,16 +44,68 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
     sort_order: "desc",
   });
 
-  // Cache for preventing unnecessary API calls
+  // Performance optimization refs
   const lastRequestRef = useRef(null);
-  const abortControllerRef = useRef(null);
+  const requestTimeoutRef = useRef(null);
+  const mountedRef = useRef(true);
+  const hookErrorRef = useRef(null);
 
-  // ===== Memoized Values =====
+  // Hook error state
+  const [hookError, setHookError] = useState(null);
+
+  // Helper Functions
+  const clearErrors = useCallback(() => {
+    setError(null);
+    setActionError(null);
+    setHookError(null);
+  }, []);
+
+  const handleError = useCallback((error, setErrorFn) => {
+    try {
+      if (!mountedRef.current) return;
+
+      const errorMessage =
+        typeof error === "string"
+          ? error
+          : error?.response?.data?.message ||
+            error?.message ||
+            "An error occurred";
+
+      console.error("Member Management Error:", error);
+
+      if (setErrorFn) {
+        setErrorFn(errorMessage);
+      } else {
+        setError(errorMessage);
+      }
+    } catch (handlerError) {
+      console.error("Error in error handler:", handlerError);
+      setHookError("Critical error in error handling");
+    }
+  }, []);
+
+  // Memoized Values - Optimized for performance
+  const userAccessLevel = useMemo(() => {
+    if (!currentUser?.role?.name) return "BASIC";
+    return memberService.getUserAccessLevel(currentUser.role.name);
+  }, [currentUser?.role?.name]);
+
+  const optimizedRequestData = useMemo(() => {
+    if (!currentUser?.role?.name) return null;
+    return memberService.buildOptimizedParams(
+      {
+        ...filters,
+        page: currentPage,
+        limit: pageSize,
+      },
+      currentUser.role.name,
+      "list"
+    );
+  }, [filters, currentPage, pageSize, currentUser?.role?.name]);
 
   const filteredMembers = useMemo(() => {
-    if (!filters.search) return members;
-
-    const searchTerm = filters.search.toLowerCase();
+    if (!filters.search?.trim()) return members;
+    const searchTerm = filters.search.toLowerCase().trim();
     return members.filter(
       (member) =>
         member.full_name?.toLowerCase().includes(searchTerm) ||
@@ -57,274 +115,340 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
     );
   }, [members, filters.search]);
 
-  const roleBasedRequestData = useMemo(() => {
-    if (!currentUser) return null;
+  // Data Fetching Functions
+  const fetchSchemes = useCallback(
+    async (useCache = true) => {
+      if (!mountedRef.current) return;
 
-    return memberManagementService.buildRoleBasedListRequest(currentUser, {
-      ...filters,
-      page: currentPage,
-      limit: pageSize,
-    });
-  }, [currentUser, filters, currentPage, pageSize]);
-
-  // ===== Helper Functions =====
-
-  const handleError = useCallback((error, setErrorFn) => {
-    const errorMessage = memberManagementService.handleApiError(error);
-    setErrorFn(errorMessage);
-    console.error("Member Management Error:", error);
-  }, []);
-
-  const clearErrors = useCallback(() => {
-    setError(null);
-    setActionError(null);
-  }, []);
-
-  // ===== Optimized Data Fetching Functions =====
-
-  const fetchMembersWithRoleBasedAPI = useCallback(
-    async (customFilters = {}) => {
-      if (!currentUser || !roleBasedRequestData) return;
-
-      // Cancel previous request if still pending
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-
-      abortControllerRef.current = new AbortController();
-      setLoading(true);
-      clearErrors();
-
+      setSchemesLoading(true);
       try {
-        const requestData = {
-          ...roleBasedRequestData,
-          ...customFilters,
-        };
+        console.log("Fetching schemes...");
+        const response = await memberService.getSchemes(useCache);
 
-        // Prevent duplicate requests
-        const requestKey = JSON.stringify(requestData);
-        if (lastRequestRef.current === requestKey && !customFilters.force) {
-          setLoading(false);
-          return;
+        if (!mountedRef.current) return;
+
+        console.log("Processed schemes data:", response.items);
+        if (mountedRef.current) {
+          setSchemes(response.items);
         }
-        lastRequestRef.current = requestKey;
-
-        const response = await memberManagementService.getRoleBasedMembers(
-          requestData
-        );
-
-        if (response.success && response.members) {
-          const formattedMembers = response.members.map((member) =>
-            memberManagementService.formatMemberForDisplay(member)
-          );
-          setMembers(formattedMembers);
-          setTotalMembers(response.total);
-          setTotalPages(Math.ceil(response.total / pageSize));
-        }
-      } catch (error) {
-        if (error.name !== "AbortError") {
-          handleError(error, setError);
-          setMembers([]);
-          setTotalMembers(0);
-          setTotalPages(1);
+      } catch (err) {
+        if (mountedRef.current) {
+          console.error("Error fetching schemes:", err);
+          handleError(err, setError);
+          setSchemes([]);
         }
       } finally {
-        setLoading(false);
-        abortControllerRef.current = null;
-      }
-    },
-    [currentUser, roleBasedRequestData, pageSize, handleError, clearErrors]
-  );
-
-  const fetchSchemes = useCallback(async () => {
-    setSchemesLoading(true);
-
-    try {
-      const response = await memberManagementService.getSchemes();
-      setSchemes(response.items || []);
-    } catch (error) {
-      handleError(error, setError);
-      setSchemes([]);
-    } finally {
-      setSchemesLoading(false);
-    }
-  }, [handleError]);
-
-  const fetchAvailableParents = useCallback(
-    async (role) => {
-      if (!role) {
-        setAvailableParents([]);
-        return;
-      }
-
-      setParentsLoading(true);
-
-      try {
-        const response = await memberManagementService.getAvailableParents(
-          role
-        );
-        setAvailableParents(response.success ? response.parents : []);
-      } catch (error) {
-        handleError(error, setError);
-        setAvailableParents([]);
-      } finally {
-        setParentsLoading(false);
+        if (mountedRef.current) {
+          setSchemesLoading(false);
+        }
       }
     },
     [handleError]
   );
 
-  const fetchDashboardStats = useCallback(async () => {
-    setDashboardLoading(true);
+  const fetchAvailableParents = useCallback(
+    async (role, search = null, useCache = true) => {
+      if (!role) {
+        setAvailableParents([]);
+        return;
+      }
 
-    try {
-      const response = await memberManagementService.getDashboardStats();
-      setDashboardStats(response);
-    } catch (error) {
-      handleError(error, setError);
-      setDashboardStats(null);
-    } finally {
-      setDashboardLoading(false);
-    }
-  }, [handleError]);
+      if (!mountedRef.current) return;
 
-  // ===== Member CRUD Operations =====
+      setParentsLoading(true);
+      try {
+        const response = await memberService.getAvailableParents(
+          role,
+          search,
+          useCache
+        );
 
+        if (mountedRef.current) {
+          setAvailableParents(response?.members || response || []);
+        }
+      } catch (err) {
+        if (mountedRef.current) {
+          console.error("Error fetching parent options:", err);
+          handleError(err, setError);
+          setAvailableParents([]);
+        }
+      } finally {
+        if (mountedRef.current) {
+          setParentsLoading(false);
+        }
+      }
+    },
+    [handleError, optimizedRequestData]
+  );
+
+  const fetchLocationOptions = useCallback(
+    async (useCache = true) => {
+      if (!mountedRef.current) return;
+
+      try {
+        const response = await memberService.getLocationOptions(useCache);
+        if (mountedRef.current) {
+          setLocationOptions(response || []);
+        }
+      } catch (err) {
+        if (mountedRef.current) {
+          handleError(err, setError);
+          setLocationOptions([]);
+        }
+      }
+    },
+    [handleError]
+  );
+
+  const fetchMembers = useCallback(
+    async (customFilters = {}, useCache = true) => {
+      if (!currentUser?.id || !optimizedRequestData) return;
+
+      // Prevent duplicate requests
+      const requestKey = JSON.stringify({
+        optimizedRequestData,
+        customFilters,
+      });
+      if (lastRequestRef.current === requestKey && !customFilters.force) {
+        return;
+      }
+      lastRequestRef.current = requestKey;
+
+      setLoading(true);
+      clearErrors();
+
+      try {
+        const requestData = { ...optimizedRequestData, ...customFilters };
+        console.log("Fetching members with data:", requestData);
+
+        const response = await memberService.getMembers(requestData, {
+          useCache,
+        });
+        console.log("Members response:", response);
+
+        // Only update state if component is still mounted
+        if (mountedRef.current) {
+          if (response?.members) {
+            setMembers(response.members);
+            setTotalMembers(response.total || 0);
+            setTotalPages(Math.ceil((response.total || 0) / pageSize));
+          } else {
+            setMembers([]);
+            setTotalMembers(0);
+            setTotalPages(1);
+          }
+        }
+      } catch (err) {
+        if (err.name !== "AbortError" && mountedRef.current) {
+          handleError(err, setError);
+          setMembers([]);
+          setTotalMembers(0);
+          setTotalPages(1);
+        }
+      } finally {
+        if (mountedRef.current) {
+          setLoading(false);
+        }
+      }
+    },
+    [currentUser?.id, optimizedRequestData, pageSize, handleError, clearErrors]
+  );
+
+  // CRUD Operations
   const createMember = useCallback(
     async (memberData) => {
+      if (!mountedRef.current)
+        return { success: false, error: "Component unmounted" };
+
       setActionLoading(true);
       clearErrors();
 
       try {
-        // Validate form data
-        const validation =
-          memberManagementService.validateMemberForm(memberData);
-        if (!validation.isValid) {
-          return {
-            success: false,
-            errors: validation.errors,
-            message: "Please fix validation errors",
-          };
+        console.log("Creating member with data:", memberData);
+        const response = await memberService.createMember(
+          memberData,
+          currentUser?.role?.name
+        );
+
+        if (mountedRef.current) {
+          await fetchMembers({ force: true }, false);
         }
-
-        const response = await memberManagementService.createMember(memberData);
-
-        // Refresh the list
-        await fetchMembersWithRoleBasedAPI({ force: true });
 
         return {
           success: true,
           data: response,
           message: "Member created successfully",
         };
-      } catch (error) {
-        const errorMessage = memberManagementService.handleApiError(error);
-        handleError(error, setActionError);
-        return {
-          success: false,
-          error: errorMessage,
-          message: errorMessage,
-        };
+      } catch (err) {
+        if (mountedRef.current) {
+          const errorMessage = memberService.handleApiError(err);
+          handleError(err, setActionError);
+          return {
+            success: false,
+            error: errorMessage,
+            message: errorMessage,
+          };
+        }
+        return { success: false, error: "Component unmounted" };
       } finally {
-        setActionLoading(false);
+        if (mountedRef.current) {
+          setActionLoading(false);
+        }
       }
     },
-    [fetchMembersWithRoleBasedAPI, handleError, clearErrors]
+    [fetchMembers, handleError, clearErrors, currentUser?.role?.name]
   );
 
   const updateMember = useCallback(
     async (memberId, memberData) => {
+      if (!mountedRef.current)
+        return { success: false, error: "Component unmounted" };
+
       setActionLoading(true);
       clearErrors();
 
       try {
-        const response = await memberManagementService.updateMember(
+        const response = await memberService.updateMember(
           memberId,
-          memberData
+          memberData,
+          currentUser?.role?.name
         );
-        await fetchMembersWithRoleBasedAPI({ force: true });
+
+        if (mountedRef.current) {
+          await fetchMembers({ force: true }, false);
+        }
+
         return {
           success: true,
           data: response,
           message: "Member updated successfully",
         };
-      } catch (error) {
-        const errorMessage = memberManagementService.handleApiError(error);
-        handleError(error, setActionError);
-        return {
-          success: false,
-          error: errorMessage,
-          message: errorMessage,
-        };
+      } catch (err) {
+        if (mountedRef.current) {
+          const errorMessage = memberService.handleApiError(err);
+          handleError(err, setActionError);
+          return {
+            success: false,
+            error: errorMessage,
+            message: errorMessage,
+          };
+        }
+        return { success: false, error: "Component unmounted" };
       } finally {
-        setActionLoading(false);
+        if (mountedRef.current) {
+          setActionLoading(false);
+        }
       }
     },
-    [fetchMembersWithRoleBasedAPI, handleError, clearErrors]
+    [fetchMembers, handleError, clearErrors, currentUser?.role?.name]
   );
 
-  const updateMemberStatus = useCallback(
-    async (memberId, isActive) => {
+  const deleteMember = useCallback(
+    async (memberId) => {
+      if (!mountedRef.current)
+        return { success: false, error: "Component unmounted" };
+
       setActionLoading(true);
       clearErrors();
 
       try {
-        await memberManagementService.updateMemberStatus(memberId, isActive);
-        await fetchMembersWithRoleBasedAPI({ force: true });
+        await memberService.deleteMember(memberId);
+
+        if (mountedRef.current) {
+          await fetchMembers({ force: true }, false);
+        }
+
+        return {
+          success: true,
+          message: "Member deleted successfully",
+        };
+      } catch (err) {
+        if (mountedRef.current) {
+          const errorMessage = memberService.handleApiError(err);
+          handleError(err, setActionError);
+          return {
+            success: false,
+            error: errorMessage,
+            message: errorMessage,
+          };
+        }
+        return { success: false, error: "Component unmounted" };
+      } finally {
+        if (mountedRef.current) {
+          setActionLoading(false);
+        }
+      }
+    },
+    [fetchMembers, handleError, clearErrors]
+  );
+
+  const updateMemberStatus = useCallback(
+    async (memberId, isActive) => {
+      if (!mountedRef.current)
+        return { success: false, error: "Component unmounted" };
+
+      setActionLoading(true);
+      clearErrors();
+
+      try {
+        await memberService.updateMemberStatus(memberId, isActive);
+
+        if (mountedRef.current) {
+          await fetchMembers({ force: true }, false);
+        }
+
         return {
           success: true,
           message: `Member ${
             isActive ? "activated" : "deactivated"
           } successfully`,
         };
-      } catch (error) {
-        const errorMessage = memberManagementService.handleApiError(error);
-        handleError(error, setActionError);
-        return {
-          success: false,
-          error: errorMessage,
-          message: errorMessage,
-        };
+      } catch (err) {
+        if (mountedRef.current) {
+          const errorMessage = memberService.handleApiError(err);
+          handleError(err, setActionError);
+          return {
+            success: false,
+            error: errorMessage,
+            message: errorMessage,
+          };
+        }
+        return { success: false, error: "Component unmounted" };
       } finally {
-        setActionLoading(false);
+        if (mountedRef.current) {
+          setActionLoading(false);
+        }
       }
     },
-    [fetchMembersWithRoleBasedAPI, handleError, clearErrors]
+    [fetchMembers, handleError, clearErrors]
   );
 
-  const deleteMember = useCallback(
-    async (memberId) => {
-      setActionLoading(true);
-      clearErrors();
+  // Filter Management - Optimized with stable references
+  const updateFilters = useCallback((newFilters) => {
+    // Ensure newFilters is an object
+    if (!newFilters || typeof newFilters !== "object") {
+      console.warn("updateFilters called with invalid filters:", newFilters);
+      return;
+    }
 
-      try {
-        await memberManagementService.deleteMember(memberId);
-        await fetchMembersWithRoleBasedAPI({ force: true });
-        return {
-          success: true,
-          message: "Member deleted successfully",
-        };
-      } catch (error) {
-        const errorMessage = memberManagementService.handleApiError(error);
-        handleError(error, setActionError);
-        return {
-          success: false,
-          error: errorMessage,
-          message: errorMessage,
-        };
-      } finally {
-        setActionLoading(false);
-      }
-    },
-    [fetchMembersWithRoleBasedAPI, handleError, clearErrors]
-  );
+    setFilters((prev) => {
+      // Only update if filters actually changed to prevent unnecessary re-renders
+      const hasChanges = Object.keys(newFilters).some(
+        (key) => prev[key] !== newFilters[key]
+      );
+      if (!hasChanges) return prev;
 
-  // ===== Search and Filter Functions =====
-
-  const applyFilters = useCallback((newFilters) => {
-    setFilters((prev) => ({ ...prev, ...newFilters }));
-    setCurrentPage(1); // Reset to first page when filters change
+      setCurrentPage(1); // Reset page when filters change
+      return { ...prev, ...newFilters };
+    });
   }, []);
+
+  const applyFilters = useCallback(
+    (newFilters) => {
+      updateFilters(newFilters);
+    },
+    [updateFilters]
+  );
 
   const resetFilters = useCallback(() => {
     setFilters({
@@ -339,90 +463,105 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
     setCurrentPage(1);
   }, [initialRole]);
 
-  // ===== Pagination Functions =====
-
-  const goToPage = useCallback(
-    (page) => {
-      if (page >= 1 && page <= totalPages) {
-        setCurrentPage(page);
-      }
-    },
-    [totalPages]
-  );
-
-  const nextPage = useCallback(() => {
-    if (currentPage < totalPages) {
-      setCurrentPage((prev) => prev + 1);
-    }
-  }, [currentPage, totalPages]);
-
-  const prevPage = useCallback(() => {
-    if (currentPage > 1) {
-      setCurrentPage((prev) => prev - 1);
-    }
-  }, [currentPage]);
-
-  // ===== Effect Hooks =====
-
-  // Fetch members when filters or pagination changes
-  useEffect(() => {
-    if (currentUser) {
-      fetchMembersWithRoleBasedAPI();
-    }
-  }, [fetchMembersWithRoleBasedAPI]);
-
-  // Initial data loading
-  useEffect(() => {
-    fetchSchemes();
-    if (currentUser) {
-      fetchDashboardStats();
-    }
-  }, [fetchSchemes, fetchDashboardStats, currentUser]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
+  // Pagination Management
+  const updatePage = useCallback((page) => {
+    setCurrentPage(page);
   }, []);
 
-  // ===== Return Hook Interface =====
+  const goToPage = useCallback((page) => {
+    setCurrentPage(page);
+  }, []);
+
+  // Effects - Optimized to prevent multiple renders
+  useEffect(() => {
+    if (currentUser) {
+      // Only fetch schemes and location options once when user is available
+      fetchSchemes();
+      fetchLocationOptions();
+    }
+  }, [currentUser?.id]); // Only depend on user ID to prevent unnecessary re-fetches
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchMembers();
+    }
+  }, [currentUser?.id, filters, currentPage]); // Optimized dependencies
+
+  // Cache Management - Optimized with stable function references
+  const refreshData = useCallback(async () => {
+    if (memberService.clearMemberCache) {
+      memberService.clearMemberCache();
+    }
+    await Promise.all([
+      fetchMembers({ force: true }, false),
+      fetchSchemes(false),
+      fetchLocationOptions(false),
+    ]);
+  }, [fetchMembers, fetchSchemes, fetchLocationOptions]);
+
+  const clearCache = useCallback(() => {
+    if (memberService.clearAllCache) {
+      memberService.clearAllCache();
+    }
+  }, []);
+
+  // Cleanup on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+
+      // Clear any pending timeouts
+      if (requestTimeoutRef.current) {
+        clearTimeout(requestTimeoutRef.current);
+      }
+
+      // Clear cache if component is unmounting
+      clearCache();
+
+      console.log(
+        "useMemberManagement: Component unmounted, cleanup completed"
+      );
+    };
+  }, [clearCache]);
 
   return {
     // Data
-    members,
-    filteredMembers,
+    members: filteredMembers,
     schemes,
     availableParents,
+    locationOptions,
     dashboardStats,
-
-    // Loading states
-    loading,
-    schemesLoading,
-    parentsLoading,
-    dashboardLoading,
-    actionLoading,
-
-    // Error states
-    error,
-    actionError,
-    clearErrors,
+    userAccessLevel,
 
     // Pagination
     currentPage,
     totalPages,
     totalMembers,
     pageSize,
-    goToPage,
-    nextPage,
-    prevPage,
 
     // Filters
     filters,
+    updateFilters,
     applyFilters,
     resetFilters,
+
+    // Loading states
+    loading,
+    actionLoading,
+    schemesLoading,
+    parentsLoading,
+
+    // Error states
+    error,
+    actionError,
+    hookError,
+    clearErrors,
+
+    // Data fetching functions
+    fetchMembers,
+    fetchSchemes,
+    fetchAvailableParents,
+    fetchLocationOptions,
 
     // CRUD operations
     createMember,
@@ -430,14 +569,27 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
     deleteMember,
     updateMemberStatus,
 
-    // Fetch functions
-    fetchMembers: fetchMembersWithRoleBasedAPI,
-    fetchSchemes,
-    fetchAvailableParents,
-    fetchDashboardStats,
+    // Pagination functions
+    updatePage,
+    goToPage,
 
-    // Utility
-    refresh: () => fetchMembersWithRoleBasedAPI({ force: true }),
+    // Cache management
+    refreshData,
+    refresh: refreshData,
+    clearCache,
+
+    // Utility functions
+    getParentOptions: fetchAvailableParents,
+    exportMembers: () => console.log("Export feature needs implementation"),
+    bulkUpdateStatus: async (memberIds, status) => {
+      // Placeholder for bulk update
+      console.log("Bulk update not implemented yet", { memberIds, status });
+      return { success: false, message: "Not implemented" };
+    },
+
+    // Computed properties
+    isLoading: loading || schemesLoading || parentsLoading,
+    hasError: !!(error || actionError),
   };
 };
 

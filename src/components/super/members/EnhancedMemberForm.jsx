@@ -16,7 +16,7 @@ import {
   FiCreditCard,
   FiUsers,
 } from "react-icons/fi";
-import memberManagementService from "../../../services/memberManagementService.js";
+import { useMemberManagement } from "../../../hooks/useMemberManagement.js";
 
 // Enhanced validation schema
 const createMemberSchema = yup.object().shape({

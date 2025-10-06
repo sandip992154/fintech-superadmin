@@ -18,6 +18,7 @@ import {
   FiChevronRight,
 } from "react-icons/fi";
 import { toast } from "react-toastify";
+import PerformanceMonitor from "../../common/PerformanceMonitor";
 
 const EnhancedMemberList = React.memo(
   ({
@@ -728,6 +729,22 @@ const EnhancedMemberList = React.memo(
             }
           }
         `}</style>
+
+        {/* Performance Monitor for Development */}
+        <PerformanceMonitor
+          isEnabled={process.env.NODE_ENV === "development"}
+          position="bottom-left"
+          apiMetrics={{
+            apiCalls: loading ? 1 : 0,
+            cacheHits: members.length > 0 ? 1 : 0,
+            errorCount: 0,
+          }}
+          renderMetrics={{
+            componentName: "EnhancedMemberList",
+            itemCount: members.length,
+            totalItems: totalMembers,
+          }}
+        />
       </div>
     );
   }

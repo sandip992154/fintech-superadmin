@@ -1,112 +1,249 @@
 /**
- * Enhanced Member Management Service
- * Handles all member-related API calls including CRUD operations, filtering, and bulk actions
+ * Unified Member Management Service
+ * Optimized service for unified member routes with role-based access control
+ * Eliminates redundancy and improves performance through intelligent caching
  */
 import apiClient from "./apiClient.js";
 
-class MemberManagementService {
-  // ===== Base Member Operations =====
+// ===== Constants and Configuration =====
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const ACCESS_LEVELS = {
+  BASIC: "basic",
+  ENHANCED: "enhanced",
+  ADMIN: "admin",
+  SUPER: "super",
+};
+
+const ROLE_ACCESS_MAP = {
+  SuperAdmin: ACCESS_LEVELS.SUPER,
+  Admin: ACCESS_LEVELS.ADMIN,
+  WhiteLabel: ACCESS_LEVELS.ENHANCED,
+  MDS: ACCESS_LEVELS.ENHANCED,
+  Distributor: ACCESS_LEVELS.BASIC,
+  Retailer: ACCESS_LEVELS.BASIC,
+  Customer: ACCESS_LEVELS.BASIC,
+};
+
+class UnifiedMemberManagementService {
+  constructor() {
+    this.cache = new Map();
+    this.requestCache = new Map();
+    this.abortControllers = new Map();
+  }
+
+  // ===== Utility Methods =====
 
   /**
-   * Get all members with filtering and pagination (Enhanced Role-based)
+   * Get user's access level based on role
    */
-  async getMembers(params = {}) {
+  getUserAccessLevel(userRole) {
+    return ROLE_ACCESS_MAP[userRole] || ACCESS_LEVELS.BASIC;
+  }
+
+  /**
+   * Build optimized parameters based on user role and access level
+   */
+  buildOptimizedParams(baseParams = {}, userRole, requestType = "list") {
+    const accessLevel = this.getUserAccessLevel(userRole);
+    const params = { ...baseParams };
+
+    // Automatically include role-appropriate features
+    switch (accessLevel) {
+      case ACCESS_LEVELS.SUPER:
+      case ACCESS_LEVELS.ADMIN:
+        params.include_transaction_summary = true;
+        params.include_financial_data = true;
+      // Fall through
+      case ACCESS_LEVELS.ENHANCED:
+        params.include_wallet_data = true;
+        params.include_parent_info = true;
+        break;
+      case ACCESS_LEVELS.BASIC:
+      default:
+        // Basic access - no additional parameters
+        break;
+    }
+
+    return params;
+  }
+
+  /**
+   * Cancel ongoing request for a specific operation
+   */
+  cancelRequest(operationKey) {
+    if (this.abortControllers.has(operationKey)) {
+      this.abortControllers.get(operationKey).abort();
+      this.abortControllers.delete(operationKey);
+    }
+  }
+
+  /**
+   * Check cache for valid data
+   */
+  getCachedData(key) {
+    if (this.cache.has(key)) {
+      const { data, timestamp } = this.cache.get(key);
+      if (Date.now() - timestamp < CACHE_TTL) {
+        return data;
+      }
+      this.cache.delete(key);
+    }
+    return null;
+  }
+
+  /**
+   * Store data in cache
+   */
+  setCachedData(key, data) {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now(),
+    });
+  }
+
+  // ===== Unified Member Operations =====
+
+  /**
+   * Unified member listing with automatic role-based optimization
+   */
+  async getMembers(requestData = {}, options = {}) {
+    const { useCache = true } = options;
+    const userRole = requestData.userRole || "Customer";
+    const params = { ...requestData };
+    delete params.userRole; // Remove userRole from params before sending to API
+
+    const cacheKey = `members_${JSON.stringify(params)}_${userRole}`;
+
+    // Check cache first
+    if (useCache) {
+      const cachedData = this.getCachedData(cacheKey);
+      if (cachedData) return cachedData;
+    }
+
+    // Cancel any existing request for this operation
+    const operationKey = `getMembers_${userRole}`;
+    this.cancelRequest(operationKey);
+
     try {
-      const queryString = new URLSearchParams(params).toString();
-      const response = await apiClient.get(
-        `/api/v1/members/list?${queryString}`
+      // Create new abort controller
+      const abortController = new AbortController();
+      this.abortControllers.set(operationKey, abortController);
+
+      // Build optimized parameters
+      const optimizedParams = this.buildOptimizedParams(
+        params,
+        userRole,
+        "list"
       );
+      const queryString = new URLSearchParams(optimizedParams).toString();
+
+      const response = await apiClient.get(
+        `/api/v1/members/list?${queryString}`,
+        { signal: abortController.signal }
+      );
+
+      // Cache successful response
+      if (useCache) {
+        this.setCachedData(cacheKey, response.data);
+      }
+
+      // Clean up abort controller
+      this.abortControllers.delete(operationKey);
+
       return response.data;
     } catch (error) {
+      if (error.name === "AbortError") {
+        console.log("Request cancelled");
+        return null;
+      }
       console.error("Error fetching members:", error);
-      throw error;
+      throw this.handleApiError(error);
     }
   }
 
   /**
-   * Get role-based member list with enhanced filtering
+   * Get member by ID with role-based data access
    */
-  async getRoleBasedMembers(requestData) {
+  async getMember(memberId, userRole = "Customer", includeSensitive = false) {
     try {
-      const response = await apiClient.post(
-        "/api/v1/members/list/role-based",
-        requestData
-      );
-      return response.data;
-    } catch (error) {
-      console.error("Error fetching role-based members:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get available parents for a specific role
-   */
-  async getAvailableParents(roleName, search = null) {
-    try {
+      const accessLevel = this.getUserAccessLevel(userRole);
       const params = new URLSearchParams();
-      if (roleName) params.append("role", roleName);
-      if (search) params.append("search", search);
 
-      const response = await apiClient.get(
-        `/api/v1/members/parents?${params.toString()}`
-      );
-      return response.data;
-    } catch (error) {
-      console.error("Error fetching available parents:", error);
-      throw error;
-    }
-  }
+      // Only include sensitive data for admin+ users
+      if (
+        includeSensitive &&
+        [ACCESS_LEVELS.ADMIN, ACCESS_LEVELS.SUPER].includes(accessLevel)
+      ) {
+        params.append("include_sensitive_data", "true");
+      }
 
-  /**
-   * Get member by ID
-   */
-  async getMember(memberId) {
-    try {
-      const response = await apiClient.get(`/api/v1/members/${memberId}`);
+      const queryString = params.toString();
+      const url = `/api/v1/members/${memberId}${
+        queryString ? `?${queryString}` : ""
+      }`;
+
+      const response = await apiClient.get(url);
       return response.data;
     } catch (error) {
       console.error("Error fetching member:", error);
-      throw error;
+      throw this.handleApiError(error);
     }
   }
 
   /**
-   * Create new member with enhanced validation
+   * Create new member with unified endpoint
    */
-  async createMember(memberData) {
+  async createMember(memberData, userRole = "Customer") {
     try {
+      // Validate data before sending
+      const validationResult = this.validateMemberForm(memberData);
+      if (!validationResult.isValid) {
+        throw new Error(
+          `Validation failed: ${Object.values(validationResult.errors).join(
+            ", "
+          )}`
+        );
+      }
+
       const preparedData = this.prepareMemberData(memberData);
       const response = await apiClient.post(
         "/api/v1/members/create",
         preparedData
       );
+
+      // Clear related cache entries
+      this.clearMemberCache();
+
       return response.data;
     } catch (error) {
       console.error("Error creating member:", error);
-      throw error;
+      throw this.handleApiError(error);
     }
   }
 
   /**
-   * Update member
+   * Update member with optimized data handling
    */
-  async updateMember(memberId, memberData) {
+  async updateMember(memberId, memberData, userRole = "Customer") {
     try {
       const preparedData = this.prepareMemberData(memberData);
       const response = await apiClient.put(
         `/api/v1/members/${memberId}`,
         preparedData
       );
+
+      // Clear related cache entries
+      this.clearMemberCache();
+
       return response.data;
     } catch (error) {
       console.error("Error updating member:", error);
-      throw error;
+      throw this.handleApiError(error);
     }
   }
 
   /**
-   * Update member status (activate/deactivate)
+   * Update member status with immediate cache invalidation
    */
   async updateMemberStatus(memberId, isActive) {
     try {
@@ -116,100 +253,336 @@ class MemberManagementService {
           is_active: isActive,
         }
       );
+
+      // Clear cache to ensure fresh data
+      this.clearMemberCache();
+
       return response.data;
     } catch (error) {
       console.error("Error updating member status:", error);
-      throw error;
+      throw this.handleApiError(error);
     }
   }
 
   /**
-   * Delete member
+   * Delete member with cache management
    */
   async deleteMember(memberId) {
     try {
       const response = await apiClient.delete(`/api/v1/members/${memberId}`);
+
+      // Clear cache
+      this.clearMemberCache();
+
       return response.data;
     } catch (error) {
       console.error("Error deleting member:", error);
-      throw error;
+      throw this.handleApiError(error);
     }
   }
 
-  // ===== Role-specific Member Operations =====
+  // ===== Advanced Operations (Role-Gated) =====
 
   /**
-   * Get members by role with enhanced filtering
+   * Perform bulk actions with role validation
    */
-  async getMembersByRole(role, filters = {}) {
+  async performBulkAction(actionData, userRole = "Customer") {
+    const accessLevel = this.getUserAccessLevel(userRole);
+
+    // Validate access level for bulk operations
+    if (
+      ![
+        ACCESS_LEVELS.ENHANCED,
+        ACCESS_LEVELS.ADMIN,
+        ACCESS_LEVELS.SUPER,
+      ].includes(accessLevel)
+    ) {
+      throw new Error(
+        "Bulk operations require Enhanced access level or higher"
+      );
+    }
+
+    // Validate role change operations
+    if (
+      actionData.action === "change_role" &&
+      ![ACCESS_LEVELS.ADMIN, ACCESS_LEVELS.SUPER].includes(accessLevel)
+    ) {
+      throw new Error(
+        "Role change operations require Admin access level or higher"
+      );
+    }
+
     try {
-      const params = {
-        role: role,
-        ...filters,
-      };
-      const queryString = new URLSearchParams(params).toString();
-      const response = await apiClient.get(
-        `/api/v1/members/list?${queryString}`
+      const response = await apiClient.post(
+        "/api/v1/members/bulk-action",
+        actionData
+      );
+
+      // Clear cache after bulk operations
+      this.clearMemberCache();
+
+      return response.data;
+    } catch (error) {
+      console.error("Error performing bulk action:", error);
+      throw this.handleApiError(error);
+    }
+  }
+
+  /**
+   * Export members with role-based data access
+   */
+  async exportMembers(exportRequest, userRole = "Customer") {
+    const accessLevel = this.getUserAccessLevel(userRole);
+
+    // Validate access level for export
+    if (
+      ![
+        ACCESS_LEVELS.ENHANCED,
+        ACCESS_LEVELS.ADMIN,
+        ACCESS_LEVELS.SUPER,
+      ].includes(accessLevel)
+    ) {
+      throw new Error(
+        "Export functionality requires Enhanced access level or higher"
+      );
+    }
+
+    // Validate financial data export
+    if (
+      exportRequest.include_financial_data &&
+      ![ACCESS_LEVELS.ADMIN, ACCESS_LEVELS.SUPER].includes(accessLevel)
+    ) {
+      throw new Error(
+        "Financial data export requires Admin access level or higher"
+      );
+    }
+
+    try {
+      const response = await apiClient.post(
+        "/api/v1/members/export",
+        exportRequest
       );
       return response.data;
     } catch (error) {
-      console.error(`Error fetching ${role} members:`, error);
-      throw error;
-    }
-  }
-
-  // ===== Utility and Reference Data =====
-
-  /**
-   * Get user role permissions
-   */
-  async getUserRolePermissions() {
-    try {
-      const response = await apiClient.get("/api/v1/members/role-permissions");
-      return response.data;
-    } catch (error) {
-      console.error("Error fetching role permissions:", error);
-      throw error;
+      console.error("Error exporting members:", error);
+      throw this.handleApiError(error);
     }
   }
 
   /**
-   * Get available schemes
+   * Get dashboard statistics with role-based metrics
    */
-  async getSchemes() {
-    try {
-      const response = await apiClient.get("/api/v1/schemes");
-      return response.data;
-    } catch (error) {
-      console.error("Error fetching schemes:", error);
-      throw error;
-    }
-  }
+  async getDashboardStats(requestData = {}, options = {}) {
+    const { useCache = true } = options;
+    const userRole = requestData.userRole || "Customer";
+    const includeFinancial = requestData.includeFinancial || false;
+    const includeSystemWide = requestData.includeSystemWide || false;
 
-  /**
-   * Get location options (states and cities)
-   */
-  async getLocationOptions() {
-    try {
-      const response = await apiClient.get("/api/v1/members/locations");
-      return response.data;
-    } catch (error) {
-      console.error("Error fetching location options:", error);
-      throw error;
-    }
-  }
+    const accessLevel = this.getUserAccessLevel(userRole);
 
-  /**
-   * Get dashboard statistics
-   */
-  async getDashboardStats() {
+    // Validate access level for dashboard
+    if (
+      ![
+        ACCESS_LEVELS.ENHANCED,
+        ACCESS_LEVELS.ADMIN,
+        ACCESS_LEVELS.SUPER,
+      ].includes(accessLevel)
+    ) {
+      throw new Error(
+        "Dashboard access requires Enhanced access level or higher"
+      );
+    }
+
+    const cacheKey = `dashboard_${userRole}_${includeFinancial}_${includeSystemWide}`;
+    const cachedData = this.getCachedData(cacheKey);
+    if (cachedData) return cachedData;
+
     try {
-      const response = await apiClient.get("/api/v1/members/admin/dashboard");
+      const params = new URLSearchParams();
+
+      // Add financial metrics for admin+ users
+      if (
+        includeFinancial &&
+        [ACCESS_LEVELS.ADMIN, ACCESS_LEVELS.SUPER].includes(accessLevel)
+      ) {
+        params.append("include_financial_metrics", "true");
+      }
+
+      // Add system-wide stats for super admin only
+      if (includeSystemWide && accessLevel === ACCESS_LEVELS.SUPER) {
+        params.append("include_system_wide_stats", "true");
+      }
+
+      const queryString = params.toString();
+      const url = `/api/v1/members/dashboard${
+        queryString ? `?${queryString}` : ""
+      }`;
+
+      const response = await apiClient.get(url);
+
+      // Cache dashboard data for shorter time (2 minutes)
+      this.cache.set(cacheKey, {
+        data: response.data,
+        timestamp: Date.now(),
+      });
+
       return response.data;
     } catch (error) {
       console.error("Error fetching dashboard stats:", error);
-      throw error;
+      throw this.handleApiError(error);
     }
+  }
+
+  // ===== Reference Data Operations =====
+
+  /**
+   * Get available parents with caching and search optimization
+   */
+  async getAvailableParents(roleName = null, search = null, useCache = true) {
+    const cacheKey = `parents_${roleName}_${search}`;
+
+    if (useCache) {
+      const cachedData = this.getCachedData(cacheKey);
+      if (cachedData) return cachedData;
+    }
+
+    try {
+      const params = new URLSearchParams();
+      if (roleName) params.append("role", roleName);
+      if (search) params.append("search", search);
+
+      const response = await apiClient.get(
+        `/api/v1/members/parents?${params.toString()}`
+      );
+
+      if (useCache) {
+        this.setCachedData(cacheKey, response.data);
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching available parents:", error);
+      throw this.handleApiError(error);
+    }
+  }
+
+  /**
+   * Get user role permissions with caching
+   */
+  async getUserRolePermissions(useCache = true) {
+    const cacheKey = "user_permissions";
+
+    if (useCache) {
+      const cachedData = this.getCachedData(cacheKey);
+      if (cachedData) return cachedData;
+    }
+
+    try {
+      const response = await apiClient.get("/api/v1/members/permissions");
+
+      if (useCache) {
+        this.setCachedData(cacheKey, response.data);
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching role permissions:", error);
+      throw this.handleApiError(error);
+    }
+  }
+
+  /**
+   * Get available schemes with caching
+   */
+  async getSchemes(useCache = true) {
+    const cacheKey = "schemes";
+
+    if (useCache) {
+      const cachedData = this.getCachedData(cacheKey);
+      if (cachedData) return cachedData;
+    }
+
+    try {
+      // Updated to use the correct scheme endpoint
+      const response = await apiClient.get("/api/v1/schemes", {
+        params: {
+          page: 1,
+          size: 100, // Get all schemes
+          is_active: true, // Only active schemes
+        },
+      });
+
+      if (useCache) {
+        this.setCachedData(cacheKey, response.data);
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching schemes:", error);
+      throw this.handleApiError(error);
+    }
+  }
+
+  /**
+   * Get location options with caching
+   */
+  async getLocationOptions(useCache = true) {
+    const cacheKey = "locations";
+
+    if (useCache) {
+      const cachedData = this.getCachedData(cacheKey);
+      if (cachedData) return cachedData;
+    }
+
+    try {
+      // Try the locations endpoint, fallback to empty array if not available
+      const response = await apiClient.get("/api/v1/locations");
+
+      if (useCache) {
+        this.setCachedData(cacheKey, response.data);
+      }
+
+      return response.data || [];
+    } catch (error) {
+      console.warn(
+        "Location options endpoint not available:",
+        error.response?.status
+      );
+
+      // Return empty array as fallback instead of throwing error
+      const fallbackData = [];
+      if (useCache) {
+        this.setCachedData(cacheKey, fallbackData);
+      }
+      return fallbackData;
+    }
+  }
+
+  // ===== Cache Management =====
+
+  /**
+   * Clear member-related cache entries
+   */
+  clearMemberCache() {
+    const memberKeys = Array.from(this.cache.keys()).filter(
+      (key) => key.startsWith("members_") || key.startsWith("dashboard_")
+    );
+    memberKeys.forEach((key) => this.cache.delete(key));
+  }
+
+  /**
+   * Clear all cache
+   */
+  clearAllCache() {
+    this.cache.clear();
+  }
+
+  /**
+   * Cancel all ongoing requests
+   */
+  cancelAllRequests() {
+    this.abortControllers.forEach((controller) => controller.abort());
+    this.abortControllers.clear();
   }
 
   // ===== Enhanced Form Validation and Utilities =====
@@ -419,4 +792,4 @@ class MemberManagementService {
   }
 }
 
-export default new MemberManagementService();
+export default new UnifiedMemberManagementService();
