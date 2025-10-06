@@ -26,16 +26,12 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
-
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      // Clear auth and redirect to login
-      localStorage.clear();
-      sessionStorage.clear();
-      window.location.href = "/signin";
-      return Promise.reject(new Error("Session expired. Please login again."));
+    // Only handle non-401 errors here, let authService handle 401s with refresh logic
+    if (error.response?.status !== 401) {
+      return Promise.reject(error);
     }
 
+    // For 401 errors, let the original request fail so authService can handle it
     return Promise.reject(error);
   }
 );

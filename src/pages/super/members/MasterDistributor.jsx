@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PaginatedTable from "../../../components/utility/PaginatedTable";
 import FilterBar from "../../../components/utility/FilterBar";
 import { SuperModal } from "../../../components/utility/SuperModel";
@@ -24,30 +24,32 @@ import {
   FiTrendingUp, // For Commission Wallet
 } from "react-icons/fi";
 import ExcelExportButton from "../../../components/utility/ExcelExportButton";
-
-const data = [
-  {
-    id: 13,
-    status: true,
-    date: "25 Jun 25 - 11:35 PM",
-    username: "whitelabel001",
-    mobile: "1234567891",
-    type: "Whitelable",
-    parentName: "BANDARU KISHORE BABU (1)",
-    parentMobile: "7997991899",
-    parentRole: "Admin",
-    registrationDate: "01/04/2023",
-    website: "nkpay4all.com/",
-    mainBalance: 0,
-    aepsBalance: 0,
-    commission: 0.2,
-    md: 1,
-    distributor: 1,
-    retailer: 1,
-  },
-];
+import { useMemberManagement } from "../../../hooks/useMemberManagement";
+import { toast } from "react-toastify";
 
 export const MasterDistributor = () => {
+  // Use the member management hook with mds role
+  const {
+    members,
+    schemes,
+    locationOptions,
+    loading,
+    actionLoading,
+    error,
+    actionError,
+    clearErrors,
+    currentPage,
+    totalPages,
+    totalMembers,
+    filters: memberFilters,
+    applyFilters: applyMemberFilters,
+    updateMemberStatus,
+    exportMembers,
+    refresh,
+    goToPage,
+  } = useMemberManagement("mds");
+
+  // Local state for UI
   const [filters, setFilters] = useState({
     fromDate: "",
     toDate: "",
@@ -57,9 +59,60 @@ export const MasterDistributor = () => {
     product: "",
   });
 
-  const [filteredData, setFilteredData] = useState([...data]);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [filteredData, setFilteredData] = useState([]);
+  const [localCurrentPage, setLocalCurrentPage] = useState(1);
   const pageSize = 10;
+
+  // Handle errors with toast notifications
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+      clearErrors();
+    }
+    if (actionError) {
+      toast.error(actionError);
+      clearErrors();
+    }
+  }, [error, actionError, clearErrors]);
+
+  // Transform API data to match existing component structure
+  useEffect(() => {
+    if (members && members.length > 0) {
+      const transformedData = members.map((member, index) => ({
+        id: member.id,
+        status: member.status,
+        date: new Date(member.created_at).toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        username: member.full_name,
+        mobile: member.phone_number,
+        email: member.email,
+        type: member.role,
+        parentName: member.parent_name,
+        parentMobile: member.parent_user_code,
+        parentRole: "WhiteLabel", // Default parent for MDS
+        registrationDate: new Date(member.created_at).toLocaleDateString(
+          "en-GB"
+        ),
+        website: "nkpay4all.com/", // Default website
+        mainBalance: member.wallet_balance || 0,
+        aepsBalance: member.aeps_balance || 0,
+        commission: 0.2, // Default commission
+        distributor: 1,
+        retailer: 1,
+        // Additional fields for profile
+        user_code: member.user_code,
+        scheme_name: member.scheme_name,
+        state: member.state,
+        city: member.city,
+      }));
+      setFilteredData(transformedData);
+    }
+  }, [members]);
 
   const handleInputChange = (name, value) => {
     setFilters((prev) => ({
@@ -69,19 +122,24 @@ export const MasterDistributor = () => {
   };
 
   const applyFilters = () => {
-    let filtered = [...data];
+    let filtered = [...filteredData];
 
-    // Optional: Handle future filter logic
+    // Apply local filters
     if (filters.userId) {
-      filtered = filtered.filter((d) =>
-        String(d.id).includes(String(filters.userId))
+      filtered = filtered.filter(
+        (d) =>
+          String(d.id).includes(String(filters.userId)) ||
+          d.user_code?.toLowerCase().includes(filters.userId.toLowerCase())
       );
     }
 
     if (filters.searchValue) {
       const val = filters.searchValue.toLowerCase();
-      filtered = filtered.filter((d) =>
-        d.productName.toLowerCase().includes(val)
+      filtered = filtered.filter(
+        (d) =>
+          d.username?.toLowerCase().includes(val) ||
+          d.mobile?.includes(val) ||
+          d.email?.toLowerCase().includes(val)
       );
     }
 
@@ -91,16 +149,47 @@ export const MasterDistributor = () => {
       );
     }
 
+    // Apply API filters for date range
+    const apiFilters = {};
+    if (filters.fromDate) apiFilters.fromDate = filters.fromDate;
+    if (filters.toDate) apiFilters.toDate = filters.toDate;
+    if (filters.searchValue) apiFilters.searchValue = filters.searchValue;
+    if (filters.status) apiFilters.status = filters.status;
+
+    // Apply API filters if any date filters are present
+    if (apiFilters.fromDate || apiFilters.toDate) {
+      applyMemberFilters(apiFilters);
+    }
+
     setFilteredData(filtered);
-    setCurrentPage(1);
+    setLocalCurrentPage(1);
     return filtered;
   };
 
-  const handleToggle = (indexInDisplay) => {
-    const actualIndex = (currentPage - 1) * pageSize + indexInDisplay;
-    const updated = [...filteredData];
-    updated[actualIndex].status = !updated[actualIndex].status;
-    setFilteredData(updated);
+  const handleToggle = async (indexInDisplay) => {
+    const actualIndex = (localCurrentPage - 1) * pageSize + indexInDisplay;
+    const memberData = filteredData[actualIndex];
+
+    if (!memberData) return;
+
+    const newStatus = !memberData.status;
+
+    try {
+      const result = await updateMemberStatus(memberData.id, newStatus);
+      if (result.success) {
+        // Update local state immediately for better UX
+        const updated = [...filteredData];
+        updated[actualIndex].status = newStatus;
+        setFilteredData(updated);
+        toast.success(
+          `MDS member ${newStatus ? "activated" : "deactivated"} successfully`
+        );
+      } else {
+        toast.error(result.error || "Failed to update member status");
+      }
+    } catch (error) {
+      toast.error("Failed to update member status");
+    }
   };
 
   //   Edit API Manager
@@ -372,33 +461,26 @@ export const MasterDistributor = () => {
     },
   };
 
-  const handleExport = () => {
-    const exportData = filteredData.map((item) => ({
-      Id: item.id,
-      Date: item.date,
-      Name: item.username,
-      Email: item.email || "N/A",
-      Mobile: item.mobile,
-      "Role Name": item.type,
-      "Main Balance": item.mainBalance,
-      "Aeps Balance": item.aepsBalance,
-      Parent: item.parentName,
-      Company: item.website,
-      Status: item.status ? "Active" : "Inactive",
-      address: user.Profile_Details.address,
-      City: user.Profile_Details.city,
-      State: user.Profile_Details.state,
-      Pincode: user.Profile_Details.pinCode,
-      Shopname: user.KYC_Profile.shopName || "N/A",
-      "Gst Tin": user.KYC_Profile.gstNumber || "N/A",
-      Pancard: user.KYC_Profile.panNumber || "N/A",
-      "Aadhar Card": user.KYC_Profile.aadharNumber || "N/A",
-      Account: user.Bank_Details.accountNUmber || "N/A",
-      Bank: user.Bank_Details.bankName || "N/A",
-      Ifsc: user.Bank_Details.ifscCode || "N/A",
-    }));
+  const handleExport = async () => {
+    try {
+      const result = await exportMembers("excel");
+      if (result.success) {
+        toast.success("Export completed successfully");
+      } else {
+        toast.error(result.error || "Export failed");
+      }
+    } catch (error) {
+      toast.error("Export failed");
+    }
+  };
 
-    return exportData;
+  const handleRefresh = async () => {
+    try {
+      await refresh();
+      toast.success("Data refreshed successfully");
+    } catch (error) {
+      toast.error("Failed to refresh data");
+    }
   };
 
   return (
@@ -406,17 +488,23 @@ export const MasterDistributor = () => {
       <div className="my-4 p-4 rounded-md bg-white dark:bg-transparent">
         <div className=" flex gap-3 justify-between">
           <h2 className="text-2xl font-bold dark:text-adminOffWhite">
-            MD List
+            Master Distributor List {totalMembers > 0 && `(${totalMembers})`}
           </h2>
           <div className="flex items-center gap-2">
-            <button className="btn-24 text-adminOffWhite bg-accentRed ">
-              Refresh
+            <button
+              className="btn-24 text-adminOffWhite bg-accentRed"
+              onClick={handleRefresh}
+              disabled={loading}
+            >
+              {loading ? "Loading..." : "Refresh"}
             </button>
-            <ExcelExportButton
-              buttonLabel="Export"
-              fileName="MDS.xlsx"
-              data={handleExport()}
-            />
+            <button
+              className="btn-24 text-adminOffWhite bg-accentBlue"
+              onClick={handleExport}
+              disabled={actionLoading}
+            >
+              {actionLoading ? "Exporting..." : "Export"}
+            </button>
           </div>
         </div>
         <FilterBar fields={fields} onSearch={applyFilters} />
@@ -434,8 +522,8 @@ export const MasterDistributor = () => {
         filters={filters}
         onSearch={applyFilters}
         columns={columns}
-        currentPage={currentPage}
-        setCurrentPage={setCurrentPage}
+        currentPage={localCurrentPage}
+        setCurrentPage={setLocalCurrentPage}
         pageSize={pageSize}
       />
 

@@ -51,17 +51,17 @@ import { Distributor } from "./pages/super/members/Distributor";
 import { Retail } from "./pages/super/members/Retail";
 import { Customer } from "./pages/super/members/Customer";
 import WhitelabelLayout from "./layouts/members/WhitelabelLayout";
-import CreateWhitelabel from "./components/super/members/whitelabel/CreateWhiteLabel";
+import CreateWhitelabelUnified from "./components/super/members/whitelabel/CreateWhiteLabelUnified";
 import MDLayout from "./layouts/members/MDLayout";
 import DSLayout from "./layouts/members/DSLayout";
 import CustomerLayout from "./layouts/members/CustomerLayout";
 import RetailerLayout from "./layouts/members/RetailerLayout";
-import CreateMDS from "./components/super/members/mds/CreateMDS";
-import CreateRetailerBYDs from "./components/super/members/ds/CreateRetailerBYDs";
+import CreateMDSUnified from "./components/super/members/mds/CreateMDSUnified";
+import CreateRetailerUnified from "./components/super/members/ds/CreateRetailerUnified";
 import TransactionHistory from "./pages/super/transaction_report/TransactionHistory";
-import CreateAdmin from "./components/super/members/admin/CreateAdmin";
+import CreateAdminUnified from "./components/super/members/admin/CreateAdminUnified";
 import MemberAdminLayout from "./layouts/members/MemberAdminLayout";
-import CreateCutsomerBYRetailer from "./components/super/members/retailer/CreateCustomerBYRetailer";
+import CreateCustomerUnified from "./components/super/members/retailer/CreateCustomerUnified";
 import { SignIn } from "./pages/SignIn";
 import ServiceOperatorManager from "./components/super/resource_tab/ServiceOperatorManager";
 
@@ -71,37 +71,23 @@ const App = () => {
   const router = createBrowserRouter([
     {
       path: "/signin",
-      element: (
-        <AuthProvider>
-          <SignIn />
-        </AuthProvider>
-      ),
+      element: <SignIn />,
     },
     {
       path: "/forgot-password",
-      element: (
-        <AuthProvider>
-          <ForgotPassword />
-        </AuthProvider>
-      ),
+      element: <ForgotPassword />,
     },
     {
       path: "/reset-password",
-      element: (
-        <AuthProvider>
-          <ResetPassword />
-        </AuthProvider>
-      ),
+      element: <ResetPassword />,
     },
     // super admin
     {
       path: "/",
       element: (
-        <AuthProvider>
-          <ProtectedRoute>
-            <SuperAdminLayout />
-          </ProtectedRoute>
-        </AuthProvider>
+        <ProtectedRoute>
+          <SuperAdminLayout />
+        </ProtectedRoute>
       ),
       children: [
         {
@@ -263,7 +249,7 @@ const App = () => {
             },
             {
               path: "create",
-              Component: CreateAdmin,
+              Component: CreateAdminUnified,
             },
           ],
         },
@@ -277,7 +263,7 @@ const App = () => {
             },
             {
               path: "create",
-              Component: CreateWhitelabel,
+              Component: CreateWhitelabelUnified,
             },
           ],
         },
@@ -291,7 +277,7 @@ const App = () => {
             },
             {
               path: "create",
-              Component: CreateMDS,
+              Component: CreateMDSUnified,
             },
           ],
         },
@@ -305,7 +291,7 @@ const App = () => {
             },
             {
               path: "create",
-              Component: CreateRetailerBYDs,
+              Component: CreateRetailerUnified,
             },
           ],
         },
@@ -319,7 +305,7 @@ const App = () => {
             },
             {
               path: "create",
-              Component: CreateCutsomerBYRetailer,
+              Component: CreateCustomerUnified,
             },
           ],
         },
@@ -343,7 +329,7 @@ const App = () => {
     // Removed duplicate sign in route
   ]);
   return (
-    <>
+    <AuthProvider>
       <RouterProvider router={router} />
       <ToastContainer
         position="top-right"
@@ -358,7 +344,7 @@ const App = () => {
         theme="light"
         className="modern-toast-container"
       />
-    </>
+    </AuthProvider>
   );
 };
 

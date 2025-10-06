@@ -63,7 +63,7 @@ class SchemeManagementService {
       });
 
       const queryString = queryParams.toString();
-      const endpoint = `/schemes${queryString ? `?${queryString}` : ""}`;
+      const endpoint = `/api/v1/schemes${queryString ? `?${queryString}` : ""}`;
 
       const response = await this.apiCall(endpoint);
 
@@ -123,7 +123,7 @@ class SchemeManagementService {
       if (!id) {
         throw new Error("Scheme ID is required");
       }
-      return await this.apiCall(`/schemes/${id}`);
+      return await this.apiCall(`/api/v1/schemes/${id}`);
     } catch (error) {
       console.error(`Error fetching scheme ${id}:`, error);
       throw new Error(`Failed to fetch scheme: ${error.message}`);
@@ -139,7 +139,7 @@ class SchemeManagementService {
         throw new Error("Scheme name is required");
       }
 
-      const result = await this.apiCall("/schemes", {
+      const result = await this.apiCall("/api/v1/schemes", {
         method: "POST",
         body: JSON.stringify(schemeData),
       });
@@ -160,7 +160,7 @@ class SchemeManagementService {
         throw new Error("Scheme ID is required");
       }
 
-      const result = await this.apiCall(`/schemes/${id}`, {
+      const result = await this.apiCall(`/api/v1/schemes/${id}`, {
         method: "PUT",
         body: JSON.stringify(schemeData),
       });
@@ -181,7 +181,7 @@ class SchemeManagementService {
         throw new Error("Scheme ID is required");
       }
 
-      const result = await this.apiCall(`/schemes/${id}`, {
+      const result = await this.apiCall(`/api/v1/schemes/${id}`, {
         method: "DELETE",
       });
 
@@ -201,7 +201,7 @@ class SchemeManagementService {
         throw new Error("Scheme ID is required");
       }
 
-      const result = await this.apiCall(`/schemes/${id}/status`, {
+      const result = await this.apiCall(`/api/v1/schemes/${id}/status`, {
         method: "PATCH",
         body: JSON.stringify({ is_active: isActive }),
       });
@@ -393,7 +393,9 @@ class SchemeManagementService {
         throw new Error("Scheme ID is required");
       }
 
-      const response = await this.apiCall(`/schemes/${schemeId}/commissions`);
+      const response = await this.apiCall(
+        `/api/v1/schemes/${schemeId}/commissions`
+      );
       return response.items || response || [];
     } catch (error) {
       console.error(
@@ -420,7 +422,7 @@ class SchemeManagementService {
       for (const serviceType of serviceTypes) {
         try {
           const response = await this.apiCall(
-            `/schemes/${schemeId}/commissions?service=${serviceType.value}`
+            `/api/v1/schemes/${schemeId}/commissions?service=${serviceType.value}`
           );
 
           // Store commissions by service type label
@@ -460,7 +462,7 @@ class SchemeManagementService {
       }
 
       const response = await this.apiCall(
-        `/schemes/${schemeId}/commissions?service=${serviceType}`
+        `/api/v1/schemes/${schemeId}/commissions?service=${serviceType}`
       );
 
       return response.entries || response.items || response || [];
@@ -562,7 +564,7 @@ class SchemeManagementService {
       const { scheme_id, ...bodyData } = commissionsData;
 
       const result = await this.apiCall(
-        `/schemes/${scheme_id}/commissions/bulk`,
+        `/api/v1/schemes/${scheme_id}/commissions/bulk`,
         {
           method: "POST",
           body: JSON.stringify(bodyData),
@@ -593,7 +595,7 @@ class SchemeManagementService {
       const { scheme_id, ...bodyData } = commissionsData;
 
       const result = await this.apiCall(
-        `/schemes/${scheme_id}/commissions/bulk-update`,
+        `/api/v1/schemes/${scheme_id}/commissions/bulk-update`,
         {
           method: "PUT",
           body: JSON.stringify(bodyData),
@@ -722,7 +724,7 @@ class SchemeManagementService {
 
       const queryParams = new URLSearchParams({ format, ...filters });
       const result = await this.apiCall(
-        `/schemes/${schemeId}/commissions/export?${queryParams}`
+        `/api/v1/schemes/${schemeId}/commissions/export?${queryParams}`
       );
 
       return result;
@@ -753,7 +755,7 @@ class SchemeManagementService {
       formData.append("format", format);
 
       const result = await this.apiCall(
-        `/schemes/${schemeId}/commissions/import`,
+        `/api/v1/schemes/${schemeId}/commissions/import`,
         {
           method: "POST",
           headers: {

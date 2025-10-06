@@ -1,5 +1,4 @@
 import { createContext, useContext, useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import authService from "../services/authService";
 import { toast } from "react-toastify";
 
@@ -19,7 +18,6 @@ export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isOtpSent, setIsOtpSent] = useState(false);
   const [pendingIdentifier, setPendingIdentifier] = useState(null);
-  const navigate = useNavigate();
 
   // Enhanced token refresh timer with retry logic
   useEffect(() => {
@@ -30,12 +28,21 @@ export const AuthProvider = ({ children }) => {
     const refreshTokenWithRetry = async () => {
       try {
         const refreshToken = localStorage.getItem("refresh_token");
-        if (refreshToken) {
-          const response = await authService.refreshToken(refreshToken);
-          if (response.access_token) {
-            localStorage.setItem("token", response.access_token);
-            retryCount = 0; // Reset retry count on success
+        if (!refreshToken) {
+          console.log("No refresh token available");
+          return;
+        }
+
+        console.log("Attempting token refresh...");
+        const response = await authService.refreshToken(refreshToken);
+        if (response.access_token) {
+          localStorage.setItem("token", response.access_token);
+          // Update refresh token if a new one is provided
+          if (response.refresh_token) {
+            localStorage.setItem("refresh_token", response.refresh_token);
           }
+          retryCount = 0; // Reset retry count on success
+          console.log("Token refreshed successfully");
         }
       } catch (error) {
         console.error("Token refresh failed:", error);
@@ -57,7 +64,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     if (isAuthenticated) {
-      const refreshInterval = 14 * 60 * 1000; // 14 minutes (slightly less than token expiry)
+      const refreshInterval = 24 * 60 * 60 * 1000; // 24 hours (refresh once a day)
       refreshTimer = setInterval(refreshTokenWithRetry, refreshInterval);
     }
 
@@ -153,7 +160,8 @@ export const AuthProvider = ({ children }) => {
           autoClose: 5000,
         });
 
-        navigate("/");
+        // Return success to let component handle navigation
+        return { success: true, user: userData };
       }
     } catch (error) {
       console.error("OTP verification error:", error);
@@ -179,8 +187,8 @@ export const AuthProvider = ({ children }) => {
       });
     }
 
-    // Navigate to login page
-    navigate("/signin");
+    // Return success to let component handle navigation
+    return { success: true };
   };
 
   const changePassword = async (currentPassword, newPassword) => {
@@ -213,7 +221,8 @@ export const AuthProvider = ({ children }) => {
       toast.success(
         "Password reset successful! Please login with your new password."
       );
-      navigate("/signin");
+      // Return success to let component handle navigation
+      return { success: true };
     } catch (error) {
       toast.error(
         error.message || "Failed to reset password. Please try again."

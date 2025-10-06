@@ -1,8 +1,10 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { Link } from "react-router";
+import { useMemberManagement } from "../../../../hooks/useMemberManagement";
+import { toast } from "react-toastify";
 
 const schema = yup.object().shape({
   name: yup.string().required("Name is required"),
@@ -27,9 +29,36 @@ const schema = yup.object().shape({
 });
 
 const states = ["Maharashtra", "Gujarat", "Karnataka", "Tamil Nadu"];
-const schemes = ["Retailor-A", "NK Tax Consultancy", "Default"];
 
 const CreateAdmin = ({ onSubmit }) => {
+  // Get schemes from the member management hook
+  const {
+    schemes,
+    schemesLoading,
+    locationOptions,
+    fetchSchemes,
+    fetchLocationOptions,
+  } = useMemberManagement();
+
+  // Local state for dynamic states and cities
+  const [selectedState, setSelectedState] = useState("");
+  const [availableCities, setAvailableCities] = useState([]);
+
+  // Fetch schemes and location options on component mount
+  useEffect(() => {
+    fetchSchemes();
+    fetchLocationOptions();
+  }, [fetchSchemes, fetchLocationOptions]);
+
+  // Update available cities when state changes
+  useEffect(() => {
+    if (selectedState && locationOptions?.states) {
+      const stateData = locationOptions.states.find(
+        (s) => s.name === selectedState
+      );
+      setAvailableCities(stateData?.cities || []);
+    }
+  }, [selectedState, locationOptions]);
   const {
     register,
     handleSubmit,
@@ -95,15 +124,32 @@ const CreateAdmin = ({ onSubmit }) => {
           <label>
             State <span className="text-red-500">*</span>
           </label>
-          <select {...register("state")} className={inputClass}>
+          <select
+            {...register("state")}
+            className={inputClass}
+            onChange={(e) => {
+              setSelectedState(e.target.value);
+              // Also register the change for react-hook-form
+              register("state").onChange(e);
+            }}
+          >
             <option value="" className="dark:bg-darkBlue">
               Select State
             </option>
-            {states.map((state) => (
-              <option key={state} value={state} className="dark:bg-darkBlue">
-                {state}
+            {locationOptions?.states?.map((state) => (
+              <option
+                key={state.name}
+                value={state.name}
+                className="dark:bg-darkBlue"
+              >
+                {state.name}
               </option>
-            ))}
+            )) ||
+              states.map((state) => (
+                <option key={state} value={state} className="dark:bg-darkBlue">
+                  {state}
+                </option>
+              ))}
           </select>
           {errors.state && (
             <p className="text-red-400 text-xs">{errors.state.message}</p>
@@ -128,11 +174,16 @@ const CreateAdmin = ({ onSubmit }) => {
           <label>
             City <span className="text-red-500">*</span>
           </label>
-          <input
-            {...register("city")}
-            placeholder="City"
-            className={inputClass}
-          />
+          <select {...register("city")} className={inputClass}>
+            <option value="" className="dark:bg-darkBlue">
+              Select City
+            </option>
+            {availableCities.map((city) => (
+              <option key={city} value={city} className="dark:bg-darkBlue">
+                {city}
+              </option>
+            ))}
+          </select>
           {errors.city && (
             <p className="text-red-400 text-xs">{errors.city.message}</p>
           )}
@@ -195,14 +246,27 @@ const CreateAdmin = ({ onSubmit }) => {
         </div>
 
         <div className="flex flex-col">
-          <label>Scheme</label>
-          <select {...register("scheme")} className={inputClass}>
+          <label>
+            Scheme <span className="text-red-500">*</span>
+            {schemesLoading && (
+              <span className="text-sm text-gray-500"> (Loading...)</span>
+            )}
+          </label>
+          <select
+            {...register("scheme")}
+            className={inputClass}
+            disabled={schemesLoading}
+          >
             <option value="" className="dark:bg-darkBlue">
-              Select Scheme
+              {schemesLoading ? "Loading schemes..." : "Select Scheme"}
             </option>
-            {schemes.map((sch) => (
-              <option key={sch} value={sch} className="dark:bg-darkBlue">
-                {sch}
+            {schemes?.map((scheme) => (
+              <option
+                key={scheme.id || scheme.name}
+                value={scheme.id || scheme.name}
+                className="dark:bg-darkBlue"
+              >
+                {scheme.name || scheme}
               </option>
             ))}
           </select>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PaginatedTable from "../../../components/utility/PaginatedTable";
 import FilterBar from "../../../components/utility/FilterBar";
 import { SuperModal } from "../../../components/utility/SuperModel";
@@ -11,6 +11,7 @@ import KycStatusForm from "../../../components/super/members/utility_components/
 import { Link } from "react-router";
 import ProfileSettings from "../../../components/super/members/utility_components/ProfileSettings";
 import StockTableForm from "../../../components/super/members/ds/StockTableForm";
+import SchemeManager from "../../../components/super/members/ds/SchemeManager";
 
 import {
   FiFileText, // For BillPayment
@@ -22,32 +23,26 @@ import {
   FiDatabase, // For AEPS Wallet
   FiTrendingUp, // For Commission Wallet
 } from "react-icons/fi";
-import ExcelExportButton from "../../../components/utility/ExcelExportButton";
-import SchemeManager from "../../../components/super/members/ds/SchemeManager";
-
-const data = [
-  {
-    id: 13,
-    status: true,
-    date: "25 Jun 25 - 11:35 PM",
-    username: "whitelabel001",
-    mobile: "1234567891",
-    type: "Whitelable",
-    parentName: "BANDARU KISHORE BABU (1)",
-    parentMobile: "7997991899",
-    parentRole: "Admin",
-    registrationDate: "01/04/2023",
-    website: "nkpay4all.com/",
-    mainBalance: 0,
-    aepsBalance: 0,
-    commission: 0.2,
-    md: 1,
-    distributor: 1,
-    retailer: 1,
-  },
-];
+import { useMemberManagement } from "../../../hooks/useMemberManagement";
+import { toast } from "react-toastify";
 
 export const Distributor = () => {
+  // Use the member management hook with distributor role
+  const {
+    members,
+    loading,
+    actionLoading,
+    error,
+    actionError,
+    clearErrors,
+    totalMembers,
+    updateMemberStatus,
+    exportMembers,
+    refresh,
+    applyFilters: applyMemberFilters,
+  } = useMemberManagement("distributor");
+
+  // Local state for UI
   const [filters, setFilters] = useState({
     fromDate: "",
     toDate: "",
@@ -57,31 +52,83 @@ export const Distributor = () => {
     product: "",
   });
 
-  const [filteredData, setFilteredData] = useState([...data]);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [filteredData, setFilteredData] = useState([]);
+  const [localCurrentPage, setLocalCurrentPage] = useState(1);
   const pageSize = 10;
+  const [editModal, setEditModal] = useState(null);
+  const [editData, setEditData] = useState(null);
+
+  // Handle errors with toast notifications
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+      clearErrors();
+    }
+    if (actionError) {
+      toast.error(actionError);
+      clearErrors();
+    }
+  }, [error, actionError, clearErrors]);
+
+  // Transform API data to match existing component structure
+  useEffect(() => {
+    if (members && members.length > 0) {
+      const transformedData = members.map((member) => ({
+        id: member.id,
+        status: member.status,
+        date: new Date(member.created_at).toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        username: member.full_name,
+        mobile: member.phone_number,
+        email: member.email,
+        type: member.role,
+        parentName: member.parent_name,
+        parentMobile: member.parent_user_code,
+        parentRole: "MDS",
+        registrationDate: new Date(member.created_at).toLocaleDateString(
+          "en-GB"
+        ),
+        website: "nkpay4all.com/",
+        mainBalance: member.wallet_balance || 0,
+        aepsBalance: member.aeps_balance || 0,
+        commission: 0.2,
+        retailer: 1,
+        user_code: member.user_code,
+        scheme_name: member.scheme_name,
+        state: member.state,
+        city: member.city,
+      }));
+      setFilteredData(transformedData);
+    }
+  }, [members]);
 
   const handleInputChange = (name, value) => {
-    setFilters((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFilters((prev) => ({ ...prev, [name]: value }));
   };
 
   const applyFilters = () => {
-    let filtered = [...data];
+    let filtered = [...filteredData];
 
-    // Optional: Handle future filter logic
     if (filters.userId) {
-      filtered = filtered.filter((d) =>
-        String(d.id).includes(String(filters.userId))
+      filtered = filtered.filter(
+        (d) =>
+          String(d.id).includes(String(filters.userId)) ||
+          d.user_code?.toLowerCase().includes(filters.userId.toLowerCase())
       );
     }
 
     if (filters.searchValue) {
       const val = filters.searchValue.toLowerCase();
-      filtered = filtered.filter((d) =>
-        d.productName.toLowerCase().includes(val)
+      filtered = filtered.filter(
+        (d) =>
+          d.username?.toLowerCase().includes(val) ||
+          d.mobile?.includes(val) ||
+          d.email?.toLowerCase().includes(val)
       );
     }
 
@@ -91,23 +138,46 @@ export const Distributor = () => {
       );
     }
 
+    const apiFilters = {};
+    if (filters.fromDate) apiFilters.fromDate = filters.fromDate;
+    if (filters.toDate) apiFilters.toDate = filters.toDate;
+
+    if (apiFilters.fromDate || apiFilters.toDate) {
+      applyMemberFilters(apiFilters);
+    }
+
     setFilteredData(filtered);
-    setCurrentPage(1);
+    setLocalCurrentPage(1);
     return filtered;
   };
 
-  const handleToggle = (indexInDisplay) => {
-    const actualIndex = (currentPage - 1) * pageSize + indexInDisplay;
-    const updated = [...filteredData];
-    updated[actualIndex].status = !updated[actualIndex].status;
-    setFilteredData(updated);
+  const handleToggle = async (indexInDisplay) => {
+    const actualIndex = (localCurrentPage - 1) * pageSize + indexInDisplay;
+    const memberData = filteredData[actualIndex];
+
+    if (!memberData) return;
+
+    const newStatus = !memberData.status;
+
+    try {
+      const result = await updateMemberStatus(memberData.id, newStatus);
+      if (result.success) {
+        const updated = [...filteredData];
+        updated[actualIndex].status = newStatus;
+        setFilteredData(updated);
+        toast.success(
+          `Distributor member ${
+            newStatus ? "activated" : "deactivated"
+          } successfully`
+        );
+      } else {
+        toast.error(result.error || "Failed to update member status");
+      }
+    } catch (error) {
+      toast.error("Failed to update member status");
+    }
   };
 
-  //   Edit API Manager
-  const [editModal, setEditModal] = useState(null);
-  const [editData, setEditData] = useState(null);
-
-  // Call this when clicking "Edit"
   const handleEditClick = (title, row) => {
     setEditData(row);
     setEditModal(title);
@@ -116,11 +186,32 @@ export const Distributor = () => {
   const handleFormSubmit = (formData) => {
     console.log("Edited Data:", formData);
     setEditModal(null);
-    // 🚀 Update your backend/state here
   };
 
   const handleStockSubmit = (type, value) => {
     console.log(`Submitted [${type}]: ${value}`);
+  };
+
+  const handleExport = async () => {
+    try {
+      const result = await exportMembers("excel");
+      if (result.success) {
+        toast.success("Export completed successfully");
+      } else {
+        toast.error(result.error || "Export failed");
+      }
+    } catch (error) {
+      toast.error("Export failed");
+    }
+  };
+
+  const handleRefresh = async () => {
+    try {
+      await refresh();
+      toast.success("Data refreshed successfully");
+    } catch (error) {
+      toast.error("Failed to refresh data");
+    }
   };
 
   const fields = [
@@ -199,7 +290,6 @@ export const Distributor = () => {
     },
   ];
 
-  // Report of user roles
   const reports = [
     {
       label: "BillPayment",
@@ -305,8 +395,6 @@ export const Distributor = () => {
       accessor: "idStock",
       render: (row) => (
         <div className="flex flex-col">
-          <span>Md - {row.md}</span>
-          <span>Distributor - {row.distributor}</span>
           <span>Retailer - {row.retailer}</span>
         </div>
       ),
@@ -373,58 +461,41 @@ export const Distributor = () => {
     },
   };
 
-  const handleExport = () => {
-    const exportData = filteredData.map((item) => ({
-      Id: item.id,
-      Date: item.date,
-      Name: item.username,
-      Email: item.email || "N/A",
-      Mobile: item.mobile,
-      "Role Name": item.type,
-      "Main Balance": item.mainBalance,
-      "Aeps Balance": item.aepsBalance,
-      Parent: item.parentName,
-      Company: item.website,
-      Status: item.status ? "Active" : "Inactive",
-      address: user.Profile_Details.address,
-      City: user.Profile_Details.city,
-      State: user.Profile_Details.state,
-      Pincode: user.Profile_Details.pinCode,
-      Shopname: user.KYC_Profile.shopName || "N/A",
-      "Gst Tin": user.KYC_Profile.gstNumber || "N/A",
-      Pancard: user.KYC_Profile.panNumber || "N/A",
-      "Aadhar Card": user.KYC_Profile.aadharNumber || "N/A",
-      Account: user.Bank_Details.accountNUmber || "N/A",
-      Bank: user.Bank_Details.bankName || "N/A",
-      Ifsc: user.Bank_Details.ifscCode || "N/A",
-    }));
-
-    return exportData;
-  };
-
   return (
-    <div className="h-[90vh] 2xl:max-w-[80%] p-4 mx-8 bg-secondaryOne dark:bg-darkBlue/70 rounded-2xl 2xl:mx-auto text-gray-800 overflow-hidden overflow-y-auto px-4 pb-6 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200">
+    <div className="h-[90vh] 2xl:max-w-[80%] p-4 mx-8 dark:bg-darkBlue/70 rounded-2xl 2xl:mx-auto text-gray-800 overflow-hidden overflow-y-auto px-4 pb-6 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200">
       <div className="my-4 p-4 rounded-md bg-white dark:bg-transparent">
-        <div className=" flex gap-3 justify-between">
+        <div className="flex gap-3 justify-between">
           <h2 className="text-2xl font-bold dark:text-adminOffWhite">
-            Distributor List
+            Distributor List {totalMembers > 0 && `(${totalMembers})`}
           </h2>
           <div className="flex items-center gap-2">
-            <button className="btn-24 text-adminOffWhite bg-accentRed ">
-              Refresh
+            <button
+              className="btn-24 text-adminOffWhite bg-accentRed"
+              onClick={handleRefresh}
+              disabled={loading}
+            >
+              {loading ? "Loading..." : "Refresh"}
             </button>
-            <ExcelExportButton
-              buttonLabel="Export"
-              fileName="whitelable.xlsx"
-              data={handleExport()}
-            />
+            <button
+              className="btn-24 text-adminOffWhite bg-accentBlue"
+              onClick={handleExport}
+              disabled={actionLoading}
+            >
+              {actionLoading ? "Exporting..." : "Export"}
+            </button>
           </div>
         </div>
         <FilterBar fields={fields} onSearch={applyFilters} />
       </div>
 
       <div className="flex items-center justify-between mb-2">
-        <div className=""></div>
+        <div className="">
+          {loading && (
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              Loading distributor members...
+            </div>
+          )}
+        </div>
         <Link to="create" className="btn-24 bg-accentGreen">
           Add New
         </Link>
@@ -435,15 +506,13 @@ export const Distributor = () => {
         filters={filters}
         onSearch={applyFilters}
         columns={columns}
-        currentPage={currentPage}
-        setCurrentPage={setCurrentPage}
+        currentPage={localCurrentPage}
+        setCurrentPage={setLocalCurrentPage}
         pageSize={pageSize}
       />
 
       {editModal != null && (
         <SuperModal onClose={() => setEditModal(null)}>
-          {/* <APIManagerForm initialData={editData} onSubmit={handleFormSubmit} /> */}
-          {/* Fund Transfer */}
           {editModal == "fund_Transfer" && (
             <FundActionForm
               onClose={() => setEditModal(null)}
@@ -451,12 +520,10 @@ export const Distributor = () => {
             />
           )}
 
-          {/* Scheme Manager */}
           {editModal == "Scheme" && (
             <SchemeManager onClose={() => setEditModal(null)} />
           )}
 
-          {/* Stock table forms */}
           {editModal == "Add_ID_Stock" && (
             <StockTableForm
               onClose={() => setEditModal(null)}
@@ -464,10 +531,8 @@ export const Distributor = () => {
             />
           )}
 
-          {/* Permissions */}
           {editModal == "Permission" && <CheckBoxPermissionForm />}
 
-          {/* Kyc_Manager */}
           {editModal == "Kyc_Manager" && <KycStatusForm />}
           {editModal == "View_Profile" && <ProfileSettings user={user} />}
         </SuperModal>

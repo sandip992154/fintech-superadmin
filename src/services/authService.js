@@ -72,7 +72,7 @@ api.interceptors.response.use(
       if (refreshToken && !originalRequest._retry) {
         originalRequest._retry = true;
         try {
-          const response = await api.post("/auth/refresh-token", {
+          const response = await api.post("/auth/refresh", {
             refresh_token: refreshToken,
           });
           const { access_token } = response.data;
@@ -250,6 +250,32 @@ const authService = {
       });
       return response.data;
     } catch (error) {
+      throw error;
+    }
+  },
+
+  // Refresh access token using refresh token
+  refreshToken: async (refreshToken) => {
+    try {
+      console.log("SuperAdminAuthService: Starting token refresh");
+      const response = await api.post("/auth/refresh", {
+        refresh_token: refreshToken,
+      });
+
+      if (response.data.access_token) {
+        localStorage.setItem("token", response.data.access_token);
+        // Update refresh token if a new one is provided
+        if (response.data.refresh_token) {
+          localStorage.setItem("refresh_token", response.data.refresh_token);
+        }
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error("SuperAdminAuthService: Token refresh error:", error);
+      if (error.response?.data?.detail) {
+        throw new Error(error.response.data.detail);
+      }
       throw error;
     }
   },

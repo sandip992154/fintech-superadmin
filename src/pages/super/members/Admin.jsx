@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PaginatedTable from "../../../components/utility/PaginatedTable";
 import FilterBar from "../../../components/utility/FilterBar";
 import { SuperModal } from "../../../components/utility/SuperModel";
@@ -6,12 +6,13 @@ import { ToggleButton } from "../../../components/utility/ToggleButton";
 import { FiRepeat, FiSettings, FiUserPlus, FiShield } from "react-icons/fi";
 import ActionDropdown from "../../../components/utility/ActionDropDown";
 import FundActionForm from "../../../components/super/members/utility_components/FundActionForm";
-import StockTableForm from "../../../components/super/members/admin/StockTableForm";
+import SchemeManager from "../../../components/super/members/whitelabel/SchemeManager";
+import StockTableForm from "../../../components/super/members/whitelabel/StockTableForm";
 import { CheckBoxPermissionForm } from "../../../components/super/members/utility_components/CheckBoxPermissionForm";
 import KycStatusForm from "../../../components/super/members/utility_components/KycManager";
 import { Link } from "react-router";
 import ProfileSettings from "../../../components/super/members/utility_components/ProfileSettings";
-import SchemeManager from "../../../components/super/members/admin/SchemeManager";
+import { useAuth } from "../../../contexts/AuthContext";
 
 import {
   FiFileText, // For BillPayment
@@ -24,31 +25,42 @@ import {
   FiTrendingUp, // For Commission Wallet
 } from "react-icons/fi";
 import ExcelExportButton from "../../../components/utility/ExcelExportButton";
-
-const data = [
-  {
-    id: 13,
-    status: true,
-    date: "25 Jun 25 - 11:35 PM",
-    username: "Admin1234",
-    mobile: "1234567891",
-    type: "Whitelable",
-    parentName: "BANDARU KISHORE BABU (1)",
-    parentMobile: "7997991899",
-    parentRole: "Admin",
-    registrationDate: "01/04/2023",
-    website: "nkpay4all.com/",
-    mainBalance: 0,
-    aepsBalance: 0,
-    commission: 0.2,
-    admin: 1,
-    md: 1,
-    distributor: 1,
-    retailer: 1,
-  },
-];
+import { useMemberManagement } from "../../../hooks/useMemberManagement";
+import { toast } from "react-toastify";
+import EnhancedMemberForm from "../../../components/super/members/EnhancedMemberForm";
+import EnhancedMemberList from "../../../components/super/members/EnhancedMemberList";
 
 export const Admin = () => {
+  // Get current user from auth context
+  const { user: currentUser } = useAuth();
+
+  // Use the member management hook with admin role and current user
+  const {
+    members,
+    schemes,
+    locationOptions,
+    loading,
+    actionLoading,
+    error,
+    actionError,
+    clearErrors,
+    currentPage,
+    totalPages,
+    totalMembers,
+    filters: memberFilters,
+    applyFilters: applyMemberFilters,
+    updateMemberStatus,
+    exportMembers,
+    refresh,
+    goToPage,
+    createMember,
+    updateMember,
+    deleteMember,
+    bulkUpdateStatus,
+    getParentOptions,
+  } = useMemberManagement("admin", currentUser);
+
+  // Local state for UI
   const [filters, setFilters] = useState({
     fromDate: "",
     toDate: "",
@@ -58,10 +70,139 @@ export const Admin = () => {
     product: "",
   });
 
-  const [filteredData, setFilteredData] = useState([...data]);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [filteredData, setFilteredData] = useState([]);
+  const [localCurrentPage, setLocalCurrentPage] = useState(1);
   const pageSize = 10;
 
+  // State for enhanced form modal
+  const [showEnhancedForm, setShowEnhancedForm] = useState(false);
+  const [editingMember, setEditingMember] = useState(null);
+
+  // Handle errors with toast notifications
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+      clearErrors();
+    }
+    if (actionError) {
+      toast.error(actionError);
+      clearErrors();
+    }
+  }, [error, actionError, clearErrors]);
+
+  // Debug: Log when members data changes
+  useEffect(() => {
+    console.log("Admin members data updated:", {
+      membersCount: members?.length || 0,
+      loading,
+      currentUser: currentUser?.user_code || "Not loaded",
+      members: members?.slice(0, 2), // Log first 2 members for debugging
+    });
+  }, [members, loading, currentUser]);
+
+  // Enhanced form handlers
+  const handleEnhancedFormSubmit = async (formData) => {
+    try {
+      let result;
+      if (editingMember) {
+        result = await updateMember(editingMember.id, formData);
+        if (result.success) {
+          toast.success("Admin member updated successfully");
+        }
+      } else {
+        result = await createMember(formData);
+        if (result.success) {
+          toast.success("Admin member created successfully");
+        }
+      }
+
+      if (result.success) {
+        setShowEnhancedForm(false);
+        setEditingMember(null);
+      } else {
+        toast.error(result.error || "Operation failed");
+      }
+    } catch (error) {
+      toast.error("Operation failed");
+    }
+  };
+
+  const handleEdit = (member) => {
+    setEditingMember(member);
+    setShowEnhancedForm(true);
+  };
+
+  const handleDelete = async (memberId) => {
+    if (window.confirm("Are you sure you want to delete this admin member?")) {
+      try {
+        const result = await deleteMember(memberId);
+        if (result.success) {
+          toast.success("Admin member deleted successfully");
+        } else {
+          toast.error(result.error || "Delete failed");
+        }
+      } catch (error) {
+        toast.error("Delete failed");
+      }
+    }
+  };
+
+  const handleBulkStatusUpdate = async (memberIds, newStatus) => {
+    try {
+      const result = await bulkUpdateStatus(memberIds, newStatus);
+      if (result.success) {
+        toast.success(
+          `Admin members ${
+            newStatus ? "activated" : "deactivated"
+          } successfully`
+        );
+      } else {
+        toast.error(result.error || "Bulk update failed");
+      }
+    } catch (error) {
+      toast.error("Bulk update failed");
+    }
+  };
+
+  // Transform API data to match existing component structure
+  useEffect(() => {
+    if (members && members.length > 0) {
+      const transformedData = members.map((member, index) => ({
+        id: member.id,
+        status: member.status,
+        date: new Date(member.created_at).toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        username: member.full_name,
+        mobile: member.phone_number,
+        email: member.email,
+        type: member.role,
+        parentName: member.parent_name,
+        parentMobile: member.parent_user_code,
+        parentRole: "SuperAdmin", // Default parent for admin
+        registrationDate: new Date(member.created_at).toLocaleDateString(
+          "en-GB"
+        ),
+        website: "nkpay4all.com/", // Default website
+        mainBalance: member.wallet_balance || 0,
+        aepsBalance: member.aeps_balance || 0,
+        commission: 0.2, // Default commission
+        md: 1,
+        distributor: 1,
+        retailer: 1,
+        // Additional fields for profile
+        user_code: member.user_code,
+        scheme_name: member.scheme_name,
+        state: member.state,
+        city: member.city,
+      }));
+      setFilteredData(transformedData);
+    }
+  }, [members]);
   const handleInputChange = (name, value) => {
     setFilters((prev) => ({
       ...prev,
@@ -70,19 +211,24 @@ export const Admin = () => {
   };
 
   const applyFilters = () => {
-    let filtered = [...data];
+    let filtered = [...filteredData];
 
-    // Optional: Handle future filter logic
+    // Apply local filters
     if (filters.userId) {
-      filtered = filtered.filter((d) =>
-        String(d.id).includes(String(filters.userId))
+      filtered = filtered.filter(
+        (d) =>
+          String(d.id).includes(String(filters.userId)) ||
+          d.user_code?.toLowerCase().includes(filters.userId.toLowerCase())
       );
     }
 
     if (filters.searchValue) {
       const val = filters.searchValue.toLowerCase();
-      filtered = filtered.filter((d) =>
-        d.productName.toLowerCase().includes(val)
+      filtered = filtered.filter(
+        (d) =>
+          d.username?.toLowerCase().includes(val) ||
+          d.mobile?.includes(val) ||
+          d.email?.toLowerCase().includes(val)
       );
     }
 
@@ -92,16 +238,47 @@ export const Admin = () => {
       );
     }
 
+    // Apply API filters for date range
+    const apiFilters = {};
+    if (filters.fromDate) apiFilters.fromDate = filters.fromDate;
+    if (filters.toDate) apiFilters.toDate = filters.toDate;
+    if (filters.searchValue) apiFilters.searchValue = filters.searchValue;
+    if (filters.status) apiFilters.status = filters.status;
+
+    // Apply API filters if any date filters are present
+    if (apiFilters.fromDate || apiFilters.toDate) {
+      applyMemberFilters(apiFilters);
+    }
+
     setFilteredData(filtered);
-    setCurrentPage(1);
+    setLocalCurrentPage(1);
     return filtered;
   };
 
-  const handleToggle = (indexInDisplay) => {
-    const actualIndex = (currentPage - 1) * pageSize + indexInDisplay;
-    const updated = [...filteredData];
-    updated[actualIndex].status = !updated[actualIndex].status;
-    setFilteredData(updated);
+  const handleToggle = async (indexInDisplay) => {
+    const actualIndex = (localCurrentPage - 1) * pageSize + indexInDisplay;
+    const memberData = filteredData[actualIndex];
+
+    if (!memberData) return;
+
+    const newStatus = !memberData.status;
+
+    try {
+      const result = await updateMemberStatus(memberData.id, newStatus);
+      if (result.success) {
+        // Update local state immediately for better UX
+        const updated = [...filteredData];
+        updated[actualIndex].status = newStatus;
+        setFilteredData(updated);
+        toast.success(
+          `Admin member ${newStatus ? "activated" : "deactivated"} successfully`
+        );
+      } else {
+        toast.error(result.error || "Failed to update member status");
+      }
+    } catch (error) {
+      toast.error("Failed to update member status");
+    }
   };
 
   //   Edit API Manager
@@ -167,6 +344,7 @@ export const Admin = () => {
     },
   ];
 
+  // actions for the dropdown action
   const actions = [
     {
       label: "Fund Transfer / Return",
@@ -306,7 +484,6 @@ export const Admin = () => {
       accessor: "idStock",
       render: (row) => (
         <div className="flex flex-col">
-          <span>Admin-{row.admin}</span>
           <span>Md - {row.md}</span>
           <span>Distributor - {row.distributor}</span>
           <span>Retailer - {row.retailer}</span>
@@ -375,33 +552,26 @@ export const Admin = () => {
     },
   };
 
-  const handleExport = () => {
-    const exportData = filteredData.map((item) => ({
-      Id: item.id,
-      Date: item.date,
-      Name: item.username,
-      Email: item.email || "N/A",
-      Mobile: item.mobile,
-      "Role Name": item.type,
-      "Main Balance": item.mainBalance,
-      "Aeps Balance": item.aepsBalance,
-      Parent: item.parentName,
-      Company: item.website,
-      Status: item.status ? "Active" : "Inactive",
-      address: user.Profile_Details.address,
-      City: user.Profile_Details.city,
-      State: user.Profile_Details.state,
-      Pincode: user.Profile_Details.pinCode,
-      Shopname: user.KYC_Profile.shopName || "N/A",
-      "Gst Tin": user.KYC_Profile.gstNumber || "N/A",
-      Pancard: user.KYC_Profile.panNumber || "N/A",
-      "Aadhar Card": user.KYC_Profile.aadharNumber || "N/A",
-      Account: user.Bank_Details.accountNUmber || "N/A",
-      Bank: user.Bank_Details.bankName || "N/A",
-      Ifsc: user.Bank_Details.ifscCode || "N/A",
-    }));
+  const handleExport = async () => {
+    try {
+      const result = await exportMembers("excel");
+      if (result.success) {
+        toast.success("Export completed successfully");
+      } else {
+        toast.error(result.error || "Export failed");
+      }
+    } catch (error) {
+      toast.error("Export failed");
+    }
+  };
 
-    return exportData;
+  const handleRefresh = async () => {
+    try {
+      await refresh();
+      toast.success("Data refreshed successfully");
+    } catch (error) {
+      toast.error("Failed to refresh data");
+    }
   };
 
   return (
@@ -409,24 +579,47 @@ export const Admin = () => {
       <div className="my-4 p-4 rounded-md bg-white dark:bg-transparent">
         <div className=" flex gap-3 justify-between">
           <h2 className="text-2xl font-bold dark:text-adminOffWhite">
-            Admin List
+            Admin List {totalMembers > 0 && `(${totalMembers})`}
           </h2>
           <div className="flex items-center gap-2">
-            <button className="btn-24 text-adminOffWhite bg-accentRed ">
-              Refresh
+            <button
+              className="btn-24 text-adminOffWhite bg-accentRed"
+              onClick={handleRefresh}
+              disabled={loading}
+            >
+              {loading ? "Loading..." : "Refresh"}
             </button>
-            <ExcelExportButton
-              buttonLabel="Export"
-              fileName="admin.xlsx"
-              data={handleExport()}
-            />
+            <button
+              className="btn-24 text-adminOffWhite bg-accentGreen"
+              onClick={handleExport}
+              disabled={actionLoading}
+            >
+              {actionLoading ? "Exporting..." : "Export"}
+            </button>
           </div>
         </div>
         <FilterBar fields={fields} onSearch={applyFilters} />
       </div>
 
       <div className="flex items-center justify-between mb-2">
-        <div className=""></div>
+        <div className="">
+          {loading && (
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              Loading admin members...
+            </div>
+          )}
+          {!loading && members.length === 0 && (
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              No admin members found.{" "}
+              {!currentUser && "(User not authenticated)"}
+            </div>
+          )}
+          {!loading && members.length > 0 && (
+            <div className="text-sm text-green-600 dark:text-green-400">
+              Showing {members.length} admin members
+            </div>
+          )}
+        </div>
         <Link to="create" className="btn-24 bg-accentGreen">
           Add New
         </Link>
@@ -437,8 +630,8 @@ export const Admin = () => {
         filters={filters}
         onSearch={applyFilters}
         columns={columns}
-        currentPage={currentPage}
-        setCurrentPage={setCurrentPage}
+        currentPage={localCurrentPage}
+        setCurrentPage={setLocalCurrentPage}
         pageSize={pageSize}
       />
 
@@ -472,6 +665,30 @@ export const Admin = () => {
           {/* Kyc_Manager */}
           {editModal == "Kyc_Manager" && <KycStatusForm />}
           {editModal == "View_Profile" && <ProfileSettings user={user} />}
+        </SuperModal>
+      )}
+
+      {/* Enhanced Member Form Modal */}
+      {showEnhancedForm && (
+        <SuperModal
+          onClose={() => {
+            setShowEnhancedForm(false);
+            setEditingMember(null);
+          }}
+        >
+          <EnhancedMemberForm
+            memberRole="admin"
+            editingMember={editingMember}
+            schemes={schemes}
+            locationOptions={locationOptions}
+            onSubmit={handleEnhancedFormSubmit}
+            onCancel={() => {
+              setShowEnhancedForm(false);
+              setEditingMember(null);
+            }}
+            loading={actionLoading}
+            getParentOptions={getParentOptions}
+          />
         </SuperModal>
       )}
     </div>

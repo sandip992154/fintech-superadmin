@@ -1,10 +1,16 @@
 import React from "react";
 import { FaUser, FaSignOutAlt } from "react-icons/fa";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { useAuth } from "../../contexts/AuthContext";
 
 const UserDropdown = ({ ref }) => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/signin");
+  };
 
   console.log("user", user);
 
@@ -48,7 +54,7 @@ const UserDropdown = ({ ref }) => {
           </Link>
         </button>
         <button
-          onClick={logout}
+          onClick={handleLogout}
           className="flex items-center space-x-3 hover:text-red-400 dark:hover:text-red-600 transition"
         >
           <FaSignOutAlt className="text-lg" />
