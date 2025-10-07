@@ -95,12 +95,8 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
       currentUser?.role_name || currentUser?.role?.name || "admin";
 
     if (!currentUser) {
-      console.log("No current user found, returning null");
       return null;
     }
-
-    console.log("Using role for optimization:", userRole);
-    console.log("Initial role filter:", initialRole);
 
     const baseParams = {
       ...filters,
@@ -115,7 +111,6 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
       "list"
     );
 
-    console.log("Built optimized params:", params);
     return params;
   }, [filters, currentPage, pageSize, currentUser, initialRole]);
 
@@ -207,13 +202,6 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
 
   const fetchMembers = useCallback(
     async (customFilters = {}, useCache = true) => {
-      console.log("fetchMembers called with:", {
-        currentUserId: currentUser?.id,
-        optimizedRequestData,
-        customFilters,
-        useCache,
-      });
-
       if (!currentUser?.id) {
         console.log("No current user ID, aborting fetchMembers");
         return;
@@ -230,7 +218,6 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
         customFilters,
       });
       if (lastRequestRef.current === requestKey && !customFilters.force) {
-        console.log("Duplicate request detected, skipping");
         return;
       }
       lastRequestRef.current = requestKey;
@@ -240,12 +227,10 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
 
       try {
         const requestData = { ...optimizedRequestData, ...customFilters };
-        console.log("Fetching members with data:", requestData);
 
         const response = await memberService.getMembers(requestData, {
           useCache,
         });
-        console.log("Members response:", response);
 
         // Only update state if component is still mounted
         if (mountedRef.current) {
@@ -259,7 +244,6 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
               "members"
             );
           } else {
-            console.log("No members in response, setting empty arrays");
             setMembers([]);
             setTotalMembers(0);
             setTotalPages(1);
@@ -292,7 +276,6 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
       clearErrors();
 
       try {
-        console.log("Creating member with data:", memberData);
         const response = await memberService.createMember(
           memberData,
           currentUser?.role_ame
@@ -505,23 +488,17 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
   // Mount effect to ensure mountedRef is properly set
   useEffect(() => {
     mountedRef.current = true;
-    console.log("useMemberManagement: Hook mounted, mountedRef set to true");
-
-    return () => {
-      console.log(
-        "useMemberManagement: Hook unmounting, setting mountedRef to false"
-      );
-    };
+    // return () => {
+    //   console.log(
+    //     "useMemberManagement: Hook unmounting, setting mountedRef to false"
+    //   );
+    // };
   }, []);
 
   useEffect(() => {
     if (currentUser?.id) {
       // Only fetch schemes and location options once when user is available
       const initializeData = async () => {
-        console.log(
-          "Initializing data, mountedRef.current:",
-          mountedRef.current
-        );
         try {
           await Promise.allSettled([fetchSchemes()]);
         } catch (error) {
@@ -559,9 +536,6 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
   // Cleanup on unmount to prevent memory leaks
   useEffect(() => {
     return () => {
-      console.log(
-        "useMemberManagement: Cleanup effect running, setting mountedRef to false"
-      );
       mountedRef.current = false;
 
       // Clear any pending timeouts
@@ -571,10 +545,6 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
 
       // Clear cache if component is unmounting
       clearCache();
-
-      console.log(
-        "useMemberManagement: Component unmounted, cleanup completed"
-      );
     };
   }, [clearCache]);
 

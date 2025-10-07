@@ -86,7 +86,6 @@ class UnifiedMemberManagementService {
         break;
     }
 
-    console.log(`Built params for role ${userRole} (${accessLevel}):`, params);
     return params;
   }
 
@@ -201,8 +200,6 @@ class UnifiedMemberManagementService {
             { signal: abortController.signal }
           );
 
-          console.log("Successfully fetched with basic parameters");
-
           // Cache the basic response
           if (useCache) {
             this.setCachedData(cacheKey + "_basic", retryResponse.data);
@@ -217,8 +214,9 @@ class UnifiedMemberManagementService {
         }
       }
 
-      console.error("Error fetching members:", error);
-      throw this.handleApiError(error);
+      if (error.name !== "CanceledError") {
+        throw this.handleApiError(error);
+      }
     }
   }
 
