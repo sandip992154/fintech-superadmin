@@ -15,6 +15,16 @@ const ACCESS_LEVELS = {
 };
 
 const ROLE_ACCESS_MAP = {
+  // Backend role names (lowercase) to access levels
+  super_admin: ACCESS_LEVELS.SUPER,
+  admin: ACCESS_LEVELS.ADMIN,
+  whitelabel: ACCESS_LEVELS.ENHANCED,
+  mds: ACCESS_LEVELS.ENHANCED,
+  distributor: ACCESS_LEVELS.BASIC,
+  retailer: ACCESS_LEVELS.BASIC,
+  customer: ACCESS_LEVELS.BASIC,
+
+  // Legacy support for frontend role names (will be deprecated)
   SuperAdmin: ACCESS_LEVELS.SUPER,
   Admin: ACCESS_LEVELS.ADMIN,
   WhiteLabel: ACCESS_LEVELS.ENHANCED,
@@ -47,16 +57,28 @@ class UnifiedMemberManagementService {
     const accessLevel = this.getUserAccessLevel(userRole);
     const params = { ...baseParams };
 
-    // Automatically include role-appropriate features
+    // Be more conservative about requesting enhanced data
+    // Only request enhanced features if we're confident the user has access
     switch (accessLevel) {
       case ACCESS_LEVELS.SUPER:
-      case ACCESS_LEVELS.ADMIN:
         params.include_transaction_summary = true;
         params.include_financial_data = true;
-      // Fall through
-      case ACCESS_LEVELS.ENHANCED:
         params.include_wallet_data = true;
         params.include_parent_info = true;
+        break;
+      case ACCESS_LEVELS.ADMIN:
+        params.include_parent_info = true;
+        // Don't request wallet data for admin level unless explicitly requested
+        if (baseParams.include_wallet_data === true) {
+          params.include_wallet_data = true;
+        }
+        break;
+      case ACCESS_LEVELS.ENHANCED:
+        params.include_parent_info = true;
+        // Only include wallet data if explicitly requested
+        if (baseParams.include_wallet_data === true) {
+          params.include_wallet_data = true;
+        }
         break;
       case ACCESS_LEVELS.BASIC:
       default:
@@ -64,6 +86,7 @@ class UnifiedMemberManagementService {
         break;
     }
 
+    console.log(`Built params for role ${userRole} (${accessLevel}):`, params);
     return params;
   }
 
@@ -156,6 +179,44 @@ class UnifiedMemberManagementService {
         console.log("Request cancelled");
         return null;
       }
+
+      // Handle 403 errors by retrying with basic parameters
+      if (
+        error.response?.status === 403 &&
+        optimizedParams.include_wallet_data
+      ) {
+        console.log(
+          "Access denied for enhanced data, retrying with basic parameters"
+        );
+        try {
+          // Remove enhanced parameters and retry
+          const basicParams = { ...params };
+          delete basicParams.include_wallet_data;
+          delete basicParams.include_transaction_summary;
+          delete basicParams.include_financial_data;
+
+          const basicQueryString = new URLSearchParams(basicParams).toString();
+          const retryResponse = await apiClient.get(
+            `/api/v1/members/list?${basicQueryString}`,
+            { signal: abortController.signal }
+          );
+
+          console.log("Successfully fetched with basic parameters");
+
+          // Cache the basic response
+          if (useCache) {
+            this.setCachedData(cacheKey + "_basic", retryResponse.data);
+          }
+
+          // Clean up abort controller
+          this.abortControllers.delete(operationKey);
+
+          return retryResponse.data;
+        } catch (retryError) {
+          console.error("Error even with basic parameters:", retryError);
+        }
+      }
+
       console.error("Error fetching members:", error);
       throw this.handleApiError(error);
     }
@@ -437,9 +498,33 @@ class UnifiedMemberManagementService {
 
   /**
    * Get available parents with caching and search optimization
+   * Fetches parents based on role hierarchy and current user context
    */
-  async getAvailableParents(roleName = null, search = null, useCache = true) {
-    const cacheKey = `parents_${roleName}_${search}`;
+  async getAvailableParents(
+    roleName = null,
+    search = null,
+    useCache = true,
+    currentUser = null
+  ) {
+    // Define parent hierarchy mapping
+    const parentRoleMapping = {
+      whitelabel: "admin",
+      mds: "whitelabel",
+      distributor: "mds",
+      retailer: "distributor",
+      customer: "retailer",
+    };
+
+    // Get the parent role for the requested role
+    const parentRole = parentRoleMapping[roleName?.toLowerCase()];
+
+    // If no parent role is defined, return empty
+    if (!parentRole) {
+      console.warn(`No parent role defined for ${roleName}`);
+      return { success: true, parents: [], message: "No parent role defined" };
+    }
+
+    const cacheKey = `parents_${parentRole}_${search}_${currentUser?.id}`;
 
     if (useCache) {
       const cachedData = this.getCachedData(cacheKey);
@@ -448,8 +533,11 @@ class UnifiedMemberManagementService {
 
     try {
       const params = new URLSearchParams();
-      if (roleName) params.append("role", roleName);
+      // Use the parent role instead of the requested role
+      params.append("role", parentRole);
       if (search) params.append("search", search);
+      // Include current user context for filtering
+      if (currentUser?.id) params.append("created_by_user", currentUser.id);
 
       const response = await apiClient.get(
         `/api/v1/members/parents?${params.toString()}`
@@ -492,7 +580,7 @@ class UnifiedMemberManagementService {
   }
 
   /**
-   * Get available schemes with caching
+   * Get available schemes with caching - Fixed API endpoint
    */
   async getSchemes(useCache = true) {
     const cacheKey = "schemes";
@@ -503,28 +591,35 @@ class UnifiedMemberManagementService {
     }
 
     try {
-      // Updated to use the correct scheme endpoint
-      const response = await apiClient.get("/api/v1/schemes", {
-        params: {
-          page: 1,
-          size: 100, // Get all schemes
-          is_active: true, // Only active schemes
-        },
-      });
+      // Use the correct schemes endpoint
+      const response = await apiClient.get("/api/v1/schemes");
+
+      // Process the response data to match frontend expectations
+      const processedData = {
+        items: response.data?.schemes || response.data || [],
+        total: response.data?.total || response.data?.schemes?.length || 0,
+        success: true,
+      };
 
       if (useCache) {
-        this.setCachedData(cacheKey, response.data);
+        this.setCachedData(cacheKey, processedData);
       }
 
-      return response.data;
+      return processedData;
     } catch (error) {
       console.error("Error fetching schemes:", error);
+      console.error("Error details:", {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
+      });
       throw this.handleApiError(error);
     }
   }
 
   /**
-   * Get location options with caching
+   * Get location options with caching - Fixed API endpoint
    */
   async getLocationOptions(useCache = true) {
     const cacheKey = "locations";
@@ -535,8 +630,8 @@ class UnifiedMemberManagementService {
     }
 
     try {
-      // Try the locations endpoint, fallback to empty array if not available
-      const response = await apiClient.get("/api/v1/locations");
+      // Use the unified member endpoint for locations
+      const response = await apiClient.get("/api/v1/members/locations");
 
       if (useCache) {
         this.setCachedData(cacheKey, response.data);
@@ -549,8 +644,37 @@ class UnifiedMemberManagementService {
         error.response?.status
       );
 
-      // Return empty array as fallback instead of throwing error
-      const fallbackData = [];
+      // Return hardcoded location data as fallback
+      const fallbackData = {
+        states: [
+          {
+            name: "Maharashtra",
+            cities: ["Mumbai", "Pune", "Nagpur", "Nashik"],
+          },
+          {
+            name: "Gujarat",
+            cities: ["Ahmedabad", "Surat", "Vadodara", "Rajkot"],
+          },
+          {
+            name: "Karnataka",
+            cities: ["Bangalore", "Mysore", "Hubli", "Mangalore"],
+          },
+          {
+            name: "Tamil Nadu",
+            cities: ["Chennai", "Coimbatore", "Madurai", "Salem"],
+          },
+          {
+            name: "Delhi",
+            cities: [
+              "New Delhi",
+              "Central Delhi",
+              "South Delhi",
+              "North Delhi",
+            ],
+          },
+        ],
+      };
+
       if (useCache) {
         this.setCachedData(cacheKey, fallbackData);
       }
@@ -693,24 +817,40 @@ class UnifiedMemberManagementService {
   }
 
   /**
-   * Prepare member data for API submission
+   * Prepare member data for API submission - Enhanced with all required fields
    */
   prepareMemberData(formData) {
     return {
+      // Basic Information
       full_name: formData.full_name?.trim(),
       email: formData.email?.trim().toLowerCase(),
       phone: this.formatPhoneNumber(formData.phone),
       mobile: formData.mobile ? this.formatPhoneNumber(formData.mobile) : null,
+
+      // Address Information
       address: formData.address?.trim(),
+      state: formData.state?.trim() || null,
+      city: formData.city?.trim() || null,
       pin_code: formData.pin_code?.trim(),
+
+      // Personal Information
+      gender: formData.gender || null,
+
+      // Business Information
       shop_name: formData.shop_name?.trim(),
       company_name: formData.company_name?.trim() || null,
       scheme: formData.scheme?.trim() || null,
+
+      // Document Information
       pan_card_number: formData.pan_card_number?.trim().toUpperCase() || null,
       company_pan_card: formData.company_pan_card?.trim().toUpperCase() || null,
       aadhaar_card_number: formData.aadhaar_card_number?.trim() || null,
+
+      // Role and Hierarchy
       role_name: formData.role_name,
       parent_id: formData.parent_id || null,
+
+      // Authentication (if creating new member)
       password: formData.password?.trim() || null,
     };
   }

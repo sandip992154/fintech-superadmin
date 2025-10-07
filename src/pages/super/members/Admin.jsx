@@ -60,7 +60,6 @@ export const Admin = () => {
     );
   }
 
-  // Use the member management hook with admin role and current user
   const {
     members,
     schemes,
@@ -211,8 +210,16 @@ export const Admin = () => {
 
   // Initial data fetch effect
   useEffect(() => {
+    console.log("Admin component - useEffect triggered with:", {
+      currentUser: !!currentUser,
+      currentUserId: currentUser?.id,
+      currentUserRole: currentUser?.role,
+      mountedRef: mountedRef.current,
+    });
+
     if (currentUser && mountedRef.current) {
       const initializeData = async () => {
+        console.log("Admin component - Starting data initialization");
         setInitialLoading(true);
         try {
           // Fetch initial data in parallel, but don't fail if one fails
@@ -597,22 +604,6 @@ export const Admin = () => {
         placeholder: "Search Name, Email, Phone, User Code",
         value: filters.search || "",
         onChange: (val) => handleFilterChange("search", val),
-      },
-      {
-        name: "role",
-        type: "select",
-        placeholder: "Select Role",
-        value: filters.role || "",
-        onChange: (val) => handleFilterChange("role", val),
-        options: [
-          { label: "All Roles", value: "" },
-          { label: "Admin", value: "Admin" },
-          { label: "Super Admin", value: "SuperAdmin" },
-          { label: "White Label", value: "WhiteLabel" },
-          { label: "MDS", value: "MDS" },
-          { label: "Distributor", value: "Distributor" },
-          { label: "Retailer", value: "Retailer" },
-        ],
       },
       {
         name: "status",

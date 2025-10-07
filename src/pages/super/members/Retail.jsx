@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import PaginatedTable from "../../../components/utility/PaginatedTable";
 import FilterBar from "../../../components/utility/FilterBar";
 import { SuperModal } from "../../../components/utility/SuperModel";
@@ -11,6 +11,8 @@ import KycStatusForm from "../../../components/super/members/utility_components/
 import { Link } from "react-router";
 import ProfileSettings from "../../../components/super/members/utility_components/ProfileSettings";
 import SchemeManager from "../../../components/super/members/retailer/SchemeManager";
+import UnifiedMemberForm from "../../../components/super/members/UnifiedMemberForm";
+import { useAuth } from "../../../contexts/AuthContext";
 
 import {
   FiFileText, // For BillPayment
@@ -26,421 +28,812 @@ import { useMemberManagement } from "../../../hooks/useMemberManagement";
 import { toast } from "react-toastify";
 
 export const Retail = () => {
-  // Use the member management hook with retailer role
+  // Get current user from auth context
+  const { user: currentUser } = useAuth();
+
+  // Refs for performance optimization
+  const mountedRef = useRef(true);
+  const dataTransformRef = useRef(new Map());
+
+  // Enhanced loading states
+  const [initialLoading, setInitialLoading] = useState(true);
+
+  // Early return with loading state if currentUser is not available
+  if (!currentUser) {
+    return (
+      <div className="h-[90vh] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">
+            Loading user information...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const {
     members,
+    schemes,
+    availableParents,
+    locationOptions,
     loading,
     actionLoading,
+    schemesLoading,
+    parentsLoading,
     error,
     actionError,
     clearErrors,
+    currentPage,
+    totalPages,
     totalMembers,
+    pageSize,
+    filters,
+    updateFilters,
+    applyFilters,
+    resetFilters,
+    fetchMembers,
+    fetchSchemes,
+    fetchAvailableParents,
+    createMember,
+    updateMember,
+    deleteMember,
     updateMemberStatus,
-    exportMembers,
-    refresh,
-    applyFilters: applyMemberFilters,
-  } = useMemberManagement("retailer");
+    updatePage,
+    goToPage,
+    refreshData,
+    bulkUpdateStatus,
+    isLoading,
+    hasError,
+  } = useMemberManagement("retailer", currentUser) || {
+    // Fallback object in case hook fails
+    members: [],
+    schemes: [],
+    availableParents: [],
+    locationOptions: [],
+    loading: false,
+    actionLoading: false,
+    schemesLoading: false,
+    parentsLoading: false,
+    error: null,
+    actionError: null,
+    clearErrors: () => {},
+    currentPage: 1,
+    totalPages: 1,
+    totalMembers: 0,
+    pageSize: 20,
+    filters: {},
+    updateFilters: () => {},
+    applyFilters: () => {},
+    resetFilters: () => {},
+    fetchMembers: async () => {},
+    fetchSchemes: async () => {},
+    fetchAvailableParents: async () => {},
+    createMember: async () => ({
+      success: false,
+      error: "Service unavailable",
+    }),
+    updateMember: async () => ({
+      success: false,
+      error: "Service unavailable",
+    }),
+    deleteMember: async () => ({
+      success: false,
+      error: "Service unavailable",
+    }),
+    updateMemberStatus: async () => ({
+      success: false,
+      error: "Service unavailable",
+    }),
+    updatePage: () => {},
+    goToPage: () => {},
+    refreshData: async () => {},
+    bulkUpdateStatus: async () => ({
+      success: false,
+      error: "Service unavailable",
+    }),
+    isLoading: false,
+    hasError: false,
+  };
 
-  // Local state for UI
-  const [filters, setFilters] = useState({
-    fromDate: "",
-    toDate: "",
-    searchValue: "",
-    userId: "",
-    status: "",
-    product: "",
-  });
+  // State for enhanced form modal
+  const [showEnhancedForm, setShowEnhancedForm] = useState(false);
+  const [editingMember, setEditingMember] = useState(null);
 
-  const [filteredData, setFilteredData] = useState([]);
-  const [localCurrentPage, setLocalCurrentPage] = useState(1);
-  const pageSize = 10;
+  // Edit modal states
   const [editModal, setEditModal] = useState(null);
   const [editData, setEditData] = useState(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // Enhanced error handling with useCallback
+  const handleError = useCallback(
+    (error, context = "") => {
+      if (!mountedRef.current) return;
+
+      const errorMessage = error?.message || error || "An error occurred";
+      console.error(`Retail component error ${context}:`, error);
+
+      // Show user-friendly error messages
+      if (error?.response?.status === 401) {
+        toast.error("Authentication required. Please log in again.");
+      } else if (error?.response?.status === 403) {
+        toast.error("You don't have permission to perform this action.");
+      } else if (error?.response?.status === 404) {
+        toast.error("The requested resource was not found.");
+      } else if (error?.response?.status >= 500) {
+        toast.error("Server error. Please try again later.");
+      } else {
+        toast.error(errorMessage);
+      }
+
+      clearErrors();
+    },
+    [clearErrors]
+  );
+
+  // Enhanced action handlers with better error handling
+  const handleActionWithLoading = useCallback(
+    async (action, successMessage, errorContext) => {
+      if (!mountedRef.current) return;
+
+      try {
+        const result = await action();
+        if (result?.success) {
+          toast.success(successMessage);
+          return result;
+        } else {
+          handleError(result?.error || "Operation failed", errorContext);
+          return result;
+        }
+      } catch (error) {
+        handleError(error, errorContext);
+        return { success: false, error };
+      }
+    },
+    [handleError]
+  );
+
+  // Initial data fetch effect
+  useEffect(() => {
+    if (currentUser && mountedRef.current) {
+      const initializeData = async () => {
+        setInitialLoading(true);
+        try {
+          // Fetch initial data in parallel
+          const promises = [
+            fetchMembers({ force: true }).catch((err) => {
+              console.warn("Failed to fetch members:", err);
+              return null;
+            }),
+            fetchSchemes().catch((err) => {
+              console.warn("Failed to fetch schemes:", err);
+              return null;
+            }),
+            fetchAvailableParents("retailer").catch((err) => {
+              console.warn("Failed to fetch available parents:", err);
+              return null;
+            }),
+          ];
+
+          await Promise.allSettled(promises);
+        } catch (error) {
+          console.error("Failed to initialize retailer data:", error);
+          handleError(error, "initialization");
+        } finally {
+          if (mountedRef.current) {
+            setInitialLoading(false);
+          }
+        }
+      };
+
+      initializeData();
+    }
+  }, [
+    currentUser,
+    fetchMembers,
+    fetchSchemes,
+    fetchAvailableParents,
+    handleError,
+  ]);
 
   // Handle errors with toast notifications
   useEffect(() => {
     if (error) {
-      toast.error(error);
-      clearErrors();
+      handleError(error, "in hook");
     }
     if (actionError) {
-      toast.error(actionError);
-      clearErrors();
+      handleError(actionError, "in action");
     }
-  }, [error, actionError, clearErrors]);
+  }, [error, actionError, handleError]);
 
-  // Transform API data to match existing component structure
-  useEffect(() => {
-    if (members && members.length > 0) {
-      const transformedData = members.map((member) => ({
-        id: member.id,
-        status: member.status,
-        date: new Date(member.created_at).toLocaleDateString("en-GB", {
-          day: "2-digit",
-          month: "short",
-          year: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        username: member.full_name,
-        mobile: member.phone_number,
-        email: member.email,
-        type: member.role,
-        parentName: member.parent_name,
-        parentMobile: member.parent_user_code,
-        parentRole: "Distributor",
-        registrationDate: new Date(member.created_at).toLocaleDateString(
-          "en-GB"
-        ),
-        website: "nkpay4all.com/",
-        mainBalance: member.wallet_balance || 0,
-        aepsBalance: member.aeps_balance || 0,
-        commission: 0.2,
-        retailer: 1,
-        user_code: member.user_code,
-        scheme_name: member.scheme_name,
-        state: member.state,
-        city: member.city,
-      }));
-      setFilteredData(transformedData);
+  // Memoized data transformation
+  const transformedData = useMemo(() => {
+    if (!members || members.length === 0) return [];
+
+    // Use cache to avoid re-transformation of same data
+    const cacheKey = JSON.stringify(
+      members.map((m) => ({ id: m.id, updated_at: m.updated_at }))
+    );
+    if (dataTransformRef.current.has(cacheKey)) {
+      return dataTransformRef.current.get(cacheKey);
     }
+
+    const transformed = members.map((member) => ({
+      id: member.id,
+      status: member.is_active,
+      date: new Date(member.created_at).toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      username: member.full_name || "N/A",
+      mobile: member.phone || member.phone_number || "N/A",
+      email: member.email || "N/A",
+      type: member.role_name || member.role || "retailer",
+      parentName: member.parent_name || "Distributor",
+      parentMobile: member.parent_user_code || "DISTRIBUTOR",
+      parentRole: "Distributor",
+      registrationDate: new Date(member.created_at).toLocaleDateString("en-GB"),
+      website: "nkpay4all.com/",
+      mainBalance: member.wallet_balance || 0,
+      aepsBalance: member.aeps_balance || 0,
+      commission: member.commission_balance || 0,
+      md: member.md_stock || 0,
+      distributor: member.distributor_stock || 0,
+      retailer: member.retailer_stock || 0,
+      // Additional fields for profile
+      user_code: member.user_code || "",
+      scheme_name: member.scheme_name || "N/A",
+      state: member.state || "",
+      city: member.city || "",
+      is_active: member.is_active,
+      // Original member data for operations
+      originalData: member,
+    }));
+
+    // Cache the result
+    dataTransformRef.current.set(cacheKey, transformed);
+    return transformed;
   }, [members]);
 
-  const handleInputChange = (name, value) => {
-    setFilters((prev) => ({ ...prev, [name]: value }));
-  };
+  // Enhanced form handlers with improved error handling
+  const handleEnhancedFormSubmit = useCallback(
+    async (formData) => {
+      const action = editingMember ? "updated" : "created";
 
-  const applyFilters = () => {
-    let filtered = [...filteredData];
+      return handleActionWithLoading(
+        async () => {
+          let result;
+          if (editingMember) {
+            result = await updateMember(editingMember.id, formData);
+          } else {
+            result = await createMember(formData);
+          }
 
-    if (filters.userId) {
-      filtered = filtered.filter(
-        (d) =>
-          String(d.id).includes(String(filters.userId)) ||
-          d.user_code?.toLowerCase().includes(filters.userId.toLowerCase())
+          if (result.success && mountedRef.current) {
+            setShowEnhancedForm(false);
+            setEditingMember(null);
+            // Refresh data to show updated member
+            await refreshData();
+          }
+
+          return result;
+        },
+        `Retailer member ${action} successfully`,
+        `form submit ${action}`
       );
-    }
+    },
+    [
+      editingMember,
+      updateMember,
+      createMember,
+      refreshData,
+      handleActionWithLoading,
+    ]
+  );
 
-    if (filters.searchValue) {
-      const val = filters.searchValue.toLowerCase();
-      filtered = filtered.filter(
-        (d) =>
-          d.username?.toLowerCase().includes(val) ||
-          d.mobile?.includes(val) ||
-          d.email?.toLowerCase().includes(val)
+  // Enhanced edit handler
+  const handleEdit = useCallback((member) => {
+    if (!mountedRef.current) return;
+    setEditingMember(member.originalData || member);
+    setShowEnhancedForm(true);
+  }, []);
+
+  // Enhanced delete handler
+  const handleDelete = useCallback(
+    async (memberId) => {
+      if (!mountedRef.current) return;
+
+      const confirmed = window.confirm(
+        "Are you sure you want to delete this retailer member? This action cannot be undone."
       );
-    }
+      if (!confirmed) return;
 
-    if (filters.status) {
-      filtered = filtered.filter((d) =>
-        filters.status === "active" ? d.status : !d.status
+      return handleActionWithLoading(
+        async () => {
+          const result = await deleteMember(memberId);
+          if (result.success) {
+            await refreshData();
+          }
+          return result;
+        },
+        "Retailer member deleted successfully",
+        "delete member"
       );
-    }
+    },
+    [deleteMember, refreshData, handleActionWithLoading]
+  );
 
-    const apiFilters = {};
-    if (filters.fromDate) apiFilters.fromDate = filters.fromDate;
-    if (filters.toDate) apiFilters.toDate = filters.toDate;
+  // Enhanced bulk status update handler
+  const handleBulkStatusUpdate = useCallback(
+    async (memberIds, newStatus) => {
+      return handleActionWithLoading(
+        async () => {
+          const result = await bulkUpdateStatus(memberIds, newStatus);
+          if (result.success) {
+            await refreshData();
+          }
+          return result;
+        },
+        `Retailer members ${
+          newStatus ? "activated" : "deactivated"
+        } successfully`,
+        "bulk status update"
+      );
+    },
+    [bulkUpdateStatus, refreshData, handleActionWithLoading]
+  );
 
-    if (apiFilters.fromDate || apiFilters.toDate) {
-      applyMemberFilters(apiFilters);
-    }
+  // Optimized form submission handler
+  const handleFormSubmit = useCallback((formData) => {
+    console.log("Retailer form submitted:", formData);
+    setEditModal(null);
+  }, []);
 
-    setFilteredData(filtered);
-    setLocalCurrentPage(1);
-    return filtered;
-  };
+  const handleStockSubmit = useCallback((type, value) => {
+    console.log(`Retailer stock submitted [${type}]: ${value}`);
+  }, []);
 
-  const handleToggle = async (indexInDisplay) => {
-    const actualIndex = (localCurrentPage - 1) * pageSize + indexInDisplay;
-    const memberData = filteredData[actualIndex];
+  // Enhanced toggle handler for member status
+  const handleToggle = useCallback(
+    async (indexInDisplay) => {
+      const member = transformedData[indexInDisplay];
+      if (!member) return;
 
-    if (!memberData) return;
+      const newStatus = !member.status;
 
-    const newStatus = !memberData.status;
+      return handleActionWithLoading(
+        async () => {
+          const result = await updateMemberStatus(member.id, newStatus);
+          if (result.success) {
+            await refreshData();
+          }
+          return result;
+        },
+        `Retailer member ${
+          newStatus ? "activated" : "deactivated"
+        } successfully`,
+        "toggle member status"
+      );
+    },
+    [transformedData, updateMemberStatus, refreshData, handleActionWithLoading]
+  );
 
-    try {
-      const result = await updateMemberStatus(memberData.id, newStatus);
-      if (result.success) {
-        const updated = [...filteredData];
-        updated[actualIndex].status = newStatus;
-        setFilteredData(updated);
-        toast.success(
-          `Retailer member ${
-            newStatus ? "activated" : "deactivated"
-          } successfully`
-        );
-      } else {
-        toast.error(result.error || "Failed to update member status");
+  // Enhanced pagination handler
+  const handlePageChange = useCallback(
+    async (newPage) => {
+      if (newPage < 1 || newPage > totalPages || newPage === currentPage) {
+        return;
       }
-    } catch (error) {
-      toast.error("Failed to update member status");
-    }
-  };
 
-  const handleEditClick = (title, row) => {
+      try {
+        await goToPage(newPage);
+      } catch (error) {
+        handleError(error, "pagination");
+      }
+    },
+    [currentPage, totalPages, goToPage, handleError]
+  );
+
+  // Enhanced filter change handler with debouncing
+  const handleFilterChange = useCallback(
+    (name, value) => {
+      updateFilters({ [name]: value });
+      // Reset to first page when filters change
+      if (currentPage !== 1) {
+        updatePage(1);
+      }
+    },
+    [updateFilters, currentPage, updatePage]
+  );
+
+  // Enhanced search with loading state
+  const handleSearch = useCallback(async () => {
+    try {
+      await applyFilters();
+    } catch (error) {
+      handleError(error, "search");
+    }
+  }, [applyFilters, handleError]);
+
+  // Enhanced reset filters
+  const handleResetFilters = useCallback(async () => {
+    try {
+      await resetFilters();
+    } catch (error) {
+      handleError(error, "reset filters");
+    }
+  }, [resetFilters, handleError]);
+
+  // Enhanced export with proper feedback
+  const handleExport = useCallback(async () => {
+    return handleActionWithLoading(
+      async () => {
+        const csvContent = [
+          [
+            "ID",
+            "Username",
+            "Mobile",
+            "Email",
+            "Role",
+            "Parent",
+            "State",
+            "City",
+            "Status",
+            "Main Balance",
+            "AEPS Balance",
+            "Commission",
+            "Registration Date",
+          ],
+          ...transformedData.map((member) => [
+            member.id,
+            member.username,
+            member.mobile,
+            member.email,
+            member.type,
+            member.parentName,
+            member.state,
+            member.city,
+            member.status ? "Active" : "Inactive",
+            member.mainBalance,
+            member.aepsBalance,
+            member.commission,
+            member.registrationDate,
+          ]),
+        ]
+          .map((row) => row.join(","))
+          .join("\n");
+
+        const blob = new Blob([csvContent], { type: "text/csv" });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `retailer_members_${
+          new Date().toISOString().split("T")[0]
+        }.csv`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+
+        return { success: true };
+      },
+      "Retailer members exported successfully",
+      "export"
+    );
+  }, [transformedData, handleActionWithLoading]);
+
+  // Enhanced refresh with proper feedback
+  const handleRefresh = useCallback(async () => {
+    return handleActionWithLoading(
+      async () => {
+        await refreshData();
+        return { success: true };
+      },
+      "Retailer data refreshed successfully",
+      "refresh"
+    );
+  }, [refreshData, handleActionWithLoading]);
+
+  // Optimized edit click handler
+  const handleEditClick = useCallback((title, row) => {
     setEditData(row);
     setEditModal(title);
-  };
+  }, []);
 
-  const handleFormSubmit = (formData) => {
-    console.log("Edited Data:", formData);
-    setEditModal(null);
-  };
+  // Enhanced filter fields configuration with proper data binding
+  const fields = useMemo(
+    () => [
+      {
+        name: "fromDate",
+        type: "date",
+        placeholder: "From Date",
+        value: filters.date_from || "",
+        onChange: (val) => handleFilterChange("date_from", val),
+      },
+      {
+        name: "toDate",
+        type: "date",
+        placeholder: "To Date",
+        value: filters.date_to || "",
+        onChange: (val) => handleFilterChange("date_to", val),
+      },
+      {
+        name: "searchValue",
+        type: "text",
+        placeholder: "Search Name, Email, Phone, User Code",
+        value: filters.search || "",
+        onChange: (val) => handleFilterChange("search", val),
+      },
+      {
+        name: "status",
+        type: "select",
+        placeholder: "Select Status",
+        value:
+          filters.is_active !== undefined
+            ? filters.is_active
+              ? "active"
+              : "inactive"
+            : "",
+        onChange: (val) => {
+          if (val === "") {
+            handleFilterChange("is_active", undefined);
+          } else {
+            handleFilterChange("is_active", val === "active");
+          }
+        },
+        options: [
+          { label: "All Status", value: "" },
+          { label: "Active", value: "active" },
+          { label: "Inactive", value: "inactive" },
+        ],
+      },
+      {
+        name: "scheme",
+        type: "select",
+        placeholder: "Select Scheme",
+        value: filters.scheme || "",
+        onChange: (val) => handleFilterChange("scheme", val),
+        options: [
+          { label: "All Schemes", value: "" },
+          ...schemes.map((scheme) => ({
+            label: scheme.name || scheme.scheme_name || "Unknown",
+            value: scheme.id || scheme.scheme_id || scheme.name,
+          })),
+        ],
+      },
+    ],
+    [filters, handleFilterChange, schemes]
+  );
 
-  const handleExport = async () => {
-    try {
-      const result = await exportMembers("excel");
-      if (result.success) {
-        toast.success("Export completed successfully");
-      } else {
-        toast.error(result.error || "Export failed");
-      }
-    } catch (error) {
-      toast.error("Export failed");
-    }
-  };
+  // Memoized actions for the dropdown
+  const actions = useMemo(
+    () => [
+      {
+        label: "Fund Transfer / Return",
+        icon: <FiRepeat />,
+        onClick: (row) => handleEditClick("fund_Transfer", row),
+      },
+      {
+        label: "Scheme",
+        icon: <FiSettings />,
+        onClick: (row) => handleEditClick("Scheme", row),
+      },
+      {
+        label: "Add Id Stock",
+        icon: <FiUserPlus />,
+        onClick: (row) => handleEditClick("Add_ID_Stock", row),
+      },
+      {
+        label: "Permission",
+        icon: <FiShield />,
+        onClick: (row) => handleEditClick("Permission", row),
+      },
+      {
+        label: "View Profile",
+        icon: <FiUserPlus />,
+        onClick: (row) => handleEditClick("View_Profile", row),
+      },
+      {
+        label: "Kyc Manager",
+        icon: <FiShield />,
+        onClick: (row) => handleEditClick("Kyc_Manager", row),
+      },
+    ],
+    [handleEditClick]
+  );
 
-  const handleRefresh = async () => {
-    try {
-      await refresh();
-      toast.success("Data refreshed successfully");
-    } catch (error) {
-      toast.error("Failed to refresh data");
-    }
-  };
+  // Memoized reports for user roles
+  const reports = useMemo(
+    () => [
+      {
+        label: "BillPayment",
+        icon: <FiFileText />,
+        onClick: (row) => handleEditClick("billpayment", row),
+      },
+      {
+        label: "Recharge",
+        icon: <FiSmartphone />,
+        onClick: (row) => handleEditClick("recharge", row),
+      },
+      {
+        label: "AEPS",
+        icon: <FiUserCheck />,
+        onClick: (row) => handleEditClick("aeps", row),
+      },
+      {
+        label: "Money Transfer",
+        icon: <FiSend />,
+        onClick: (row) => handleEditClick("money_transfer", row),
+      },
+      {
+        label: "UTI Pancard",
+        icon: <FiCreditCard />,
+        onClick: (row) => handleEditClick("uti_pancard", row),
+      },
+      {
+        label: "Account Statement",
+        icon: <FiBarChart2 />,
+        onClick: (row) => handleEditClick("account_statement", row),
+      },
+      {
+        label: "AEPS Wallet",
+        icon: <FiDatabase />,
+        onClick: (row) => handleEditClick("aeps_wallet", row),
+      },
+      {
+        label: "Commission Wallet",
+        icon: <FiTrendingUp />,
+        onClick: (row) => handleEditClick("commission_wallet", row),
+      },
+    ],
+    [handleEditClick]
+  );
 
-  const fields = [
-    {
-      name: "fromDate",
-      type: "date",
-      placeholder: "From Date",
-      value: filters.fromDate || "",
-      onChange: (val) => handleInputChange("fromDate", val),
-    },
-    {
-      name: "toDate",
-      type: "date",
-      placeholder: "To Date",
-      value: filters.toDate || "",
-      onChange: (val) => handleInputChange("toDate", val),
-    },
-    {
-      name: "searchValue",
-      type: "text",
-      placeholder: "Search Value",
-      value: filters.searchValue || "",
-      onChange: (val) => handleInputChange("searchValue", val),
-    },
-    {
-      name: "userId",
-      type: "text",
-      placeholder: "Agent/Parent",
-      value: filters.userId || "",
-      onChange: (val) => handleInputChange("userId", val),
-    },
-    {
-      name: "status",
-      type: "select",
-      placeholder: "Select Status",
-      value: filters.status || "",
-      onChange: (val) => handleInputChange("status", val),
-      options: [
-        { label: "Select Status", value: "" },
-        { label: "Active", value: "active" },
-        { label: "Block", value: "block" },
-      ],
-    },
-  ];
-
-  const actions = [
-    {
-      label: "Fund Transfer / Return",
-      icon: <FiRepeat />,
-      onClick: (row) => handleEditClick("fund_Transfer", row),
-    },
-    {
-      label: "Scheme",
-      icon: <FiSettings />,
-      onClick: (row) => handleEditClick("Scheme", row),
-    },
-    {
-      label: "Permission",
-      icon: <FiShield />,
-      onClick: (row) => handleEditClick("Permission", row),
-    },
-    {
-      label: "View Profile",
-      icon: <FiUserPlus />,
-      onClick: (row) => handleEditClick("View_Profile", row),
-    },
-    {
-      label: "Kyc Manager",
-      icon: <FiShield />,
-      onClick: (row) => handleEditClick("Kyc_Manager", row),
-    },
-  ];
-
-  const reports = [
-    {
-      label: "BillPayment",
-      icon: <FiFileText />,
-      onClick: (row) => handleEditClick("billpayment", row),
-    },
-    {
-      label: "Recharge",
-      icon: <FiSmartphone />,
-      onClick: (row) => handleEditClick("recharge", row),
-    },
-    {
-      label: "AEPS",
-      icon: <FiUserCheck />,
-      onClick: (row) => handleEditClick("aeps", row),
-    },
-    {
-      label: "Money Transfer",
-      icon: <FiSend />,
-      onClick: (row) => handleEditClick("money_transfer", row),
-    },
-    {
-      label: "UTI Pancard",
-      icon: <FiCreditCard />,
-      onClick: (row) => handleEditClick("uti_pancard", row),
-    },
-    {
-      label: "Account Statement",
-      icon: <FiBarChart2 />,
-      onClick: (row) => handleEditClick("account_statement", row),
-    },
-    {
-      label: "AEPS Wallet",
-      icon: <FiDatabase />,
-      onClick: (row) => handleEditClick("aeps_wallet", row),
-    },
-    {
-      label: "Commission Wallet",
-      icon: <FiTrendingUp />,
-      onClick: (row) => handleEditClick("commission_wallet", row),
-    },
-  ];
-
-  const columns = [
-    {
-      header: "#",
-      accessor: "id",
-      render: (row, idx) => (
-        <div className="flex flex-col">
-          <div className="flex gap-2 items-center">
-            <ToggleButton row={row} onchange={() => handleToggle(idx)} />
-            <span>{row.id}</span>
+  // Memoized table columns configuration
+  const columns = useMemo(
+    () => [
+      {
+        header: "#",
+        accessor: "id",
+        render: (row, idx) => (
+          <div className="flex flex-col">
+            <div className="flex gap-2 items-center">
+              <ToggleButton row={row} onchange={() => handleToggle(idx)} />
+              <span>{row.id}</span>
+            </div>
+            <span>{row.date}</span>
           </div>
-          <span>{row.date}</span>
-        </div>
-      ),
-    },
-    {
-      header: "NAME",
-      accessor: "name",
-      render: (row) => (
-        <div className="flex flex-col">
-          <span>{row.username}</span>
-          <span>{row.mobile}</span>
-          <span>{row.type}</span>
-        </div>
-      ),
-    },
-    {
-      header: "PARENT DETAILS",
-      accessor: "parentDetails",
-      render: (row) => (
-        <div className="flex flex-col">
-          <span>{row.parentName}</span>
-          <span>{row.parentMobile}</span>
-          <span>{row.parentRole}</span>
-        </div>
-      ),
-    },
-    {
-      header: "COMPANY PROFILE",
-      accessor: "companyProfile",
-      render: (row) => (
-        <div className="flex flex-col">
-          <span>{row.registrationDate}</span>
-          <span className="text-blue-400">{row.website}</span>
-        </div>
-      ),
-    },
-    {
-      header: "WALLET DETAILS",
-      accessor: "walletDetails",
-      render: (row) => (
-        <div className="flex flex-col">
-          <span>Main : {row.mainBalance} ₹/-</span>
-          <span>Aeps : {row.aepsBalance} ₹/-</span>
-          <span>Commission : {row.commission} ₹/-</span>
-        </div>
-      ),
-    },
-    {
-      header: "ACTION",
-      accessor: "action",
-      render: (row) => (
-        <div className="flex flex-col gap-2">
-          <ActionDropdown items={actions} row={row} />
-          <ActionDropdown items={reports} row={row} buttonLabel="Reports" />
-        </div>
-      ),
-    },
-  ];
+        ),
+      },
+      {
+        header: "NAME",
+        accessor: "name",
+        render: (row) => (
+          <div className="flex flex-col">
+            <span>{row.username}</span>
+            <span>{row.mobile}</span>
+            <span>{row.type}</span>
+          </div>
+        ),
+      },
+      {
+        header: "PARENT DETAILS",
+        accessor: "parentDetails",
+        render: (row) => (
+          <div className="flex flex-col">
+            <span>{row.parentName}</span>
+            <span>{row.parentMobile}</span>
+            <span>{row.parentRole}</span>
+          </div>
+        ),
+      },
+      {
+        header: "COMPANY PROFILE",
+        accessor: "companyProfile",
+        render: (row) => (
+          <div className="flex flex-col">
+            <span>{row.registrationDate}</span>
+            <span className="text-blue-400">{row.website}</span>
+          </div>
+        ),
+      },
+      {
+        header: "WALLET DETAILS",
+        accessor: "walletDetails",
+        render: (row) => (
+          <div className="flex flex-col">
+            <span>Main : {row.mainBalance} ₹/-</span>
+            <span>Aeps : {row.aepsBalance} ₹/-</span>
+            <span>Commission : {row.commission} ₹/-</span>
+          </div>
+        ),
+      },
+      {
+        header: "ID STOCK",
+        accessor: "idStock",
+        render: (row) => (
+          <div className="flex flex-col">
+            <span>Md - {row.md}</span>
+            <span>Distributor - {row.distributor}</span>
+            <span>Retailer - {row.retailer}</span>
+          </div>
+        ),
+      },
+      {
+        header: "ACTION",
+        accessor: "action",
+        render: (row) => (
+          <div className="flex flex-col gap-2">
+            <ActionDropdown items={actions} row={row} />
+            <ActionDropdown items={reports} row={row} buttonLabel="Reports" />
+          </div>
+        ),
+      },
+    ],
+    [actions, reports, handleToggle]
+  );
 
-  const user = {
-    Profile_Details: {
-      name: "BANDARU KISHORE BABU",
-      mobile: "7997991899",
-      state: "Telangana",
-      city: "HYDERABAD",
-      gender: "",
-      pinCode: "500089",
-      email: "support@phonepays.in",
-      securityPin: "",
-      address: "7-15/62,PLOT NO 62,ROAD NO 4.SI",
-    },
-    KYC_Profile: {
-      shopName: "",
-      gstNumber: "",
-      aadharNumber: "",
-      panNumber: "",
-      securityPin: "",
-      passportPhoto: "",
-    },
-    Password_Manager: {
-      newPassword: "",
-      confirmPassword: "",
-      securityPin: "",
-    },
-    Pin_Manager: {
-      newPin: "",
-      confirmPin: "",
-      otp: "",
-    },
-    Bank_Details: {
-      accountNUmber: "",
-      bankName: "",
-      ifscCode: "",
-      securityPin: "",
-    },
-    Cetificate_Manager: {
-      cmo: "",
-      coo: "",
-    },
-    Role_Manager: {
-      membersRole: "",
-      securityPin: "",
-    },
-    Mapping_Manager: {
-      parentMember: "",
-      securityPin: "",
-    },
-  };
+  // Memoized user profile data
+  const user = useMemo(
+    () => ({
+      Profile_Details: {
+        name: "BANDARU KISHORE BABU",
+        mobile: "7997991899",
+        state: "Telangana",
+        city: "HYDERABAD",
+        gender: "",
+        pinCode: "500089",
+        email: "support@phonepays.in",
+        securityPin: "",
+        address: "7-15/62,PLOT NO 62,ROAD NO 4.SI",
+      },
+      KYC_Profile: {
+        shopName: "",
+        gstNumber: "",
+        aadharNumber: "",
+        panNumber: "",
+        securityPin: "",
+        passportPhoto: "",
+      },
+      Password_Manager: {
+        newPassword: "",
+        confirmPassword: "",
+        securityPin: "",
+      },
+      Pin_Manager: {
+        newPin: "",
+        confirmPin: "",
+        otp: "",
+      },
+      Bank_Details: {
+        accountNUmber: "",
+        bankName: "",
+        ifscCode: "",
+        securityPin: "",
+      },
+      Cetificate_Manager: {
+        cmo: "",
+        coo: "",
+      },
+      Role_Manager: {
+        membersRole: "",
+        securityPin: "",
+      },
+      Mapping_Manager: {
+        parentMember: "",
+        securityPin: "",
+      },
+    }),
+    []
+  );
 
   return (
     <div className="h-[90vh] 2xl:max-w-[80%] p-4 mx-8 dark:bg-darkBlue/70 rounded-2xl 2xl:mx-auto text-gray-800 overflow-hidden overflow-y-auto px-4 pb-6 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200">
@@ -453,12 +846,12 @@ export const Retail = () => {
             <button
               className="btn-24 text-adminOffWhite bg-accentRed"
               onClick={handleRefresh}
-              disabled={loading}
+              disabled={loading || actionLoading}
             >
-              {loading ? "Loading..." : "Refresh"}
+              {loading || actionLoading ? "Loading..." : "Refresh"}
             </button>
             <button
-              className="btn-24 text-adminOffWhite bg-accentBlue"
+              className="btn-24 text-adminOffWhite bg-accentGreen"
               onClick={handleExport}
               disabled={actionLoading}
             >
@@ -466,7 +859,11 @@ export const Retail = () => {
             </button>
           </div>
         </div>
-        <FilterBar fields={fields} onSearch={applyFilters} />
+        <FilterBar
+          fields={fields}
+          onSearch={handleSearch}
+          onReset={handleResetFilters}
+        />
       </div>
 
       <div className="flex items-center justify-between mb-2">
@@ -476,24 +873,52 @@ export const Retail = () => {
               Loading retailer members...
             </div>
           )}
+          {initialLoading && (
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              Initializing data...
+            </div>
+          )}
         </div>
-        <Link to="create" className="btn-24 bg-accentGreen">
-          Add New
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            to="create"
+            className="px-2 py-1 cursor-pointer bg-accentPurple rounded text-adminOffWhite"
+          >
+            Create Retailer
+          </Link>
+        </div>
       </div>
 
       <PaginatedTable
-        data={filteredData}
-        filters={filters}
-        onSearch={applyFilters}
+        data={transformedData}
         columns={columns}
-        currentPage={localCurrentPage}
-        setCurrentPage={setLocalCurrentPage}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={handlePageChange}
+        loading={loading}
         pageSize={pageSize}
       />
 
+      {/* Enhanced Member Form Modal */}
+      {showEnhancedForm && (
+        <SuperModal onClose={() => setShowEnhancedForm(false)}>
+          <UnifiedMemberForm
+            initialData={editingMember}
+            onSubmit={handleEnhancedFormSubmit}
+            onCancel={() => setShowEnhancedForm(false)}
+            isEditing={!!editingMember}
+            targetRole="retailer"
+            availableParents={availableParents}
+            schemes={schemes}
+            locationOptions={locationOptions}
+            loading={actionLoading}
+          />
+        </SuperModal>
+      )}
+
       {editModal != null && (
         <SuperModal onClose={() => setEditModal(null)}>
+          {/* Fund Transfer */}
           {editModal == "fund_Transfer" && (
             <FundActionForm
               onClose={() => setEditModal(null)}
@@ -501,12 +926,15 @@ export const Retail = () => {
             />
           )}
 
+          {/* Scheme Manager */}
           {editModal == "Scheme" && (
             <SchemeManager onClose={() => setEditModal(null)} />
           )}
 
+          {/* Permissions */}
           {editModal == "Permission" && <CheckBoxPermissionForm />}
 
+          {/* Kyc_Manager */}
           {editModal == "Kyc_Manager" && <KycStatusForm />}
           {editModal == "View_Profile" && <ProfileSettings user={user} />}
         </SuperModal>

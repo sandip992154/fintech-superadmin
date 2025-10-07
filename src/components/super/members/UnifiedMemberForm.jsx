@@ -53,10 +53,24 @@ const createValidationSchema = (memberType) => {
       .min(10, "Please provide a complete address")
       .max(500, "Address must not exceed 500 characters")
       .required("Address is required"),
+    state: yup
+      .string()
+      .trim()
+      .min(2, "Please select a valid state")
+      .required("State is required"),
+    city: yup
+      .string()
+      .trim()
+      .min(2, "Please select a valid city")
+      .required("City is required"),
     pin_code: yup
       .string()
       .trim()
       .matches(/^\d{6}$/, "Please enter a valid 6-digit PIN code")
+      .required("PIN code is required"),
+    gender: yup
+      .string()
+      .oneOf(["male", "female", "other"], "Please select a valid gender")
       .nullable()
       .transform((value) => value || null),
     shop_name: yup
@@ -131,6 +145,13 @@ const memberTypeConfig = {
     icon: FiUsers,
     showCompanyFields: false,
   },
+  distributor: {
+    title: "Create Distributor",
+    role: "distributor",
+    color: "bg-indigo-600 hover:bg-indigo-700",
+    icon: FiUsers,
+    showCompanyFields: false,
+  },
   retailer: {
     title: "Create Retailer",
     role: "retailer",
@@ -191,7 +212,10 @@ const UnifiedMemberForm = ({ memberType = "admin", onSubmit }) => {
       phone: "",
       mobile: "",
       address: "",
+      state: "",
+      city: "",
       pin_code: "",
+      gender: "",
       shop_name: "",
       company_name: "",
       scheme: "",
@@ -242,13 +266,16 @@ const UnifiedMemberForm = ({ memberType = "admin", onSubmit }) => {
       setSubmitError(null);
       clearErrors();
 
-      // Load schemes first (always needed)
-      await fetchSchemes();
+      // Load all required data in parallel for better performance
+      const promises = [fetchSchemes()];
 
       // Fetch available parents for non-admin roles
       if (memberType !== "admin") {
-        await fetchAvailableParents(config.role);
+        promises.push(fetchAvailableParents(config.role));
       }
+
+      // Wait for all data to load
+      await Promise.allSettled(promises);
 
       console.log(`Initial data loaded for ${memberType} form`);
     } catch (error) {
@@ -609,15 +636,79 @@ const UnifiedMemberForm = ({ memberType = "admin", onSubmit }) => {
                   )}
                 </div>
 
+                {/* State Input */}
+                <div>
+                  <label className={styles.label}>
+                    State <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    {...register("state")}
+                    type="text"
+                    placeholder="Enter state name"
+                    className={errors.state ? styles.inputError : styles.input}
+                    disabled={isFormLoading}
+                    autoComplete="address-level1"
+                  />
+                  {errors.state && (
+                    <p className={styles.error}>
+                      <FiAlertCircle className="w-4 h-4 mr-1" />
+                      {errors.state.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* City Input */}
+                <div>
+                  <label className={styles.label}>
+                    City <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    {...register("city")}
+                    type="text"
+                    placeholder="Enter city name"
+                    className={errors.city ? styles.inputError : styles.input}
+                    disabled={isFormLoading}
+                    autoComplete="address-level2"
+                  />
+                  {errors.city && (
+                    <p className={styles.error}>
+                      <FiAlertCircle className="w-4 h-4 mr-1" />
+                      {errors.city.message}
+                    </p>
+                  )}
+                </div>
+
                 {createInputField(
                   "pin_code",
                   "text",
                   "Enter 6-digit PIN code",
                   {
                     label: "PIN Code",
+                    required: true,
                     props: { maxLength: "6", autoComplete: "postal-code" },
                   }
                 )}
+
+                {/* Gender Selection */}
+                <div>
+                  <label className={styles.label}>Gender</label>
+                  <select
+                    {...register("gender")}
+                    className={errors.gender ? styles.inputError : styles.input}
+                    disabled={isFormLoading}
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                  {errors.gender && (
+                    <p className={styles.error}>
+                      <FiAlertCircle className="w-4 h-4 mr-1" />
+                      {errors.gender.message}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>

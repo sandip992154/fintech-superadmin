@@ -57,11 +57,12 @@ import DSLayout from "./layouts/members/DSLayout";
 import CustomerLayout from "./layouts/members/CustomerLayout";
 import RetailerLayout from "./layouts/members/RetailerLayout";
 import CreateMDSUnified from "./components/super/members/mds/CreateMDSUnified";
-import CreateRetailerUnified from "./components/super/members/ds/CreateRetailerUnified";
+import CreateDistributorUnified from "./components/super/members/ds/CreateRetailerUnified";
 import TransactionHistory from "./pages/super/transaction_report/TransactionHistory";
 import CreateAdminUnified from "./components/super/members/admin/CreateAdminUnified";
 import MemberAdminLayout from "./layouts/members/MemberAdminLayout";
-import CreateCustomerUnified from "./components/super/members/retailer/CreateCustomerUnified";
+import CreateRetailerUnified from "./components/super/members/retailer/CreateRetailerUnified";
+import CreateCustomerUnified from "./components/super/members/customer/CreateCustomerUnified";
 import { SignIn } from "./pages/SignIn";
 import ServiceOperatorManager from "./components/super/resource_tab/ServiceOperatorManager";
 
@@ -291,7 +292,7 @@ const App = () => {
             },
             {
               path: "create",
-              Component: CreateRetailerUnified,
+              Component: CreateDistributorUnified,
             },
           ],
         },
@@ -305,7 +306,7 @@ const App = () => {
             },
             {
               path: "create",
-              Component: CreateCustomerUnified,
+              Component: CreateRetailerUnified,
             },
           ],
         },
@@ -317,10 +318,10 @@ const App = () => {
               index: true,
               Component: Customer,
             },
-            // {
-            //   path: "create",
-            //   Component: CreateWhitelabel,
-            // },
+            {
+              path: "create",
+              Component: CreateCustomerUnified,
+            },
           ],
         },
       ],

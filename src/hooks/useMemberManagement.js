@@ -14,7 +14,6 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
   const [members, setMembers] = useState([]);
   const [schemes, setSchemes] = useState([]);
   const [availableParents, setAvailableParents] = useState([]);
-  const [locationOptions, setLocationOptions] = useState([]);
   const [dashboardStats, setDashboardStats] = useState(null);
 
   // Loading States
@@ -86,22 +85,39 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
 
   // Memoized Values - Optimized for performance
   const userAccessLevel = useMemo(() => {
-    if (!currentUser?.role?.name) return "BASIC";
-    return memberService.getUserAccessLevel(currentUser.role.name);
-  }, [currentUser?.role?.name]);
+    if (!currentUser?.role_name) return "BASIC";
+    return memberService.getUserAccessLevel(currentUser.role_name);
+  }, [currentUser?.role_name]);
 
   const optimizedRequestData = useMemo(() => {
-    if (!currentUser?.role?.name) return null;
-    return memberService.buildOptimizedParams(
-      {
-        ...filters,
-        page: currentPage,
-        limit: pageSize,
-      },
-      currentUser.role.name,
+    // Extract role name with multiple fallback options
+    const userRole =
+      currentUser?.role_name || currentUser?.role?.name || "admin";
+
+    if (!currentUser) {
+      console.log("No current user found, returning null");
+      return null;
+    }
+
+    console.log("Using role for optimization:", userRole);
+    console.log("Initial role filter:", initialRole);
+
+    const baseParams = {
+      ...filters,
+      page: currentPage,
+      limit: pageSize,
+      role: initialRole || "admin", // Use the initialRole parameter instead of hardcoded super_admin
+    };
+
+    const params = memberService.buildOptimizedParams(
+      baseParams,
+      userRole,
       "list"
     );
-  }, [filters, currentPage, pageSize, currentUser?.role?.name]);
+
+    console.log("Built optimized params:", params);
+    return params;
+  }, [filters, currentPage, pageSize, currentUser, initialRole]);
 
   const filteredMembers = useMemo(() => {
     if (!filters.search?.trim()) return members;
@@ -118,18 +134,25 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
   // Data Fetching Functions
   const fetchSchemes = useCallback(
     async (useCache = true) => {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current) {
+        return;
+      }
 
       setSchemesLoading(true);
       try {
-        console.log("Fetching schemes...");
         const response = await memberService.getSchemes(useCache);
-
         if (!mountedRef.current) return;
 
-        console.log("Processed schemes data:", response.items);
+        // Handle different response structures with fallback
+        const schemesData =
+          response?.items || response?.schemes || response || [];
+
         if (mountedRef.current) {
-          setSchemes(response.items);
+          setSchemes(schemesData?.items);
+        } else {
+          console.log(
+            "fetchSchemes: mountedRef is false, not setting schemes state"
+          );
         }
       } catch (err) {
         if (mountedRef.current) {
@@ -160,11 +183,12 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
         const response = await memberService.getAvailableParents(
           role,
           search,
-          useCache
+          useCache,
+          currentUser // Pass current user context
         );
 
         if (mountedRef.current) {
-          setAvailableParents(response?.members || response || []);
+          setAvailableParents(response?.parents || response || []);
         }
       } catch (err) {
         if (mountedRef.current) {
@@ -181,28 +205,24 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
     [handleError, optimizedRequestData]
   );
 
-  const fetchLocationOptions = useCallback(
-    async (useCache = true) => {
-      if (!mountedRef.current) return;
-
-      try {
-        const response = await memberService.getLocationOptions(useCache);
-        if (mountedRef.current) {
-          setLocationOptions(response || []);
-        }
-      } catch (err) {
-        if (mountedRef.current) {
-          handleError(err, setError);
-          setLocationOptions([]);
-        }
-      }
-    },
-    [handleError]
-  );
-
   const fetchMembers = useCallback(
     async (customFilters = {}, useCache = true) => {
-      if (!currentUser?.id || !optimizedRequestData) return;
+      console.log("fetchMembers called with:", {
+        currentUserId: currentUser?.id,
+        optimizedRequestData,
+        customFilters,
+        useCache,
+      });
+
+      if (!currentUser?.id) {
+        console.log("No current user ID, aborting fetchMembers");
+        return;
+      }
+
+      if (!optimizedRequestData) {
+        console.log("No optimized request data, aborting fetchMembers");
+        return;
+      }
 
       // Prevent duplicate requests
       const requestKey = JSON.stringify({
@@ -210,6 +230,7 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
         customFilters,
       });
       if (lastRequestRef.current === requestKey && !customFilters.force) {
+        console.log("Duplicate request detected, skipping");
         return;
       }
       lastRequestRef.current = requestKey;
@@ -232,13 +253,20 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
             setMembers(response.members);
             setTotalMembers(response.total || 0);
             setTotalPages(Math.ceil((response.total || 0) / pageSize));
+            console.log(
+              "Successfully set members data:",
+              response.members.length,
+              "members"
+            );
           } else {
+            console.log("No members in response, setting empty arrays");
             setMembers([]);
             setTotalMembers(0);
             setTotalPages(1);
           }
         }
       } catch (err) {
+        console.error("Error in fetchMembers:", err);
         if (err.name !== "AbortError" && mountedRef.current) {
           handleError(err, setError);
           setMembers([]);
@@ -267,7 +295,7 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
         console.log("Creating member with data:", memberData);
         const response = await memberService.createMember(
           memberData,
-          currentUser?.role?.name
+          currentUser?.role_ame
         );
 
         if (mountedRef.current) {
@@ -296,7 +324,7 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
         }
       }
     },
-    [fetchMembers, handleError, clearErrors, currentUser?.role?.name]
+    [fetchMembers, handleError, clearErrors, currentUser?.role_name]
   );
 
   const updateMember = useCallback(
@@ -311,7 +339,7 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
         const response = await memberService.updateMember(
           memberId,
           memberData,
-          currentUser?.role?.name
+          currentUser?.role_name
         );
 
         if (mountedRef.current) {
@@ -340,7 +368,7 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
         }
       }
     },
-    [fetchMembers, handleError, clearErrors, currentUser?.role?.name]
+    [fetchMembers, handleError, clearErrors, currentUser?.role_name]
   );
 
   const deleteMember = useCallback(
@@ -473,19 +501,43 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
   }, []);
 
   // Effects - Optimized to prevent multiple renders
+
+  // Mount effect to ensure mountedRef is properly set
   useEffect(() => {
-    if (currentUser) {
-      // Only fetch schemes and location options once when user is available
-      fetchSchemes();
-      fetchLocationOptions();
-    }
-  }, [currentUser?.id]); // Only depend on user ID to prevent unnecessary re-fetches
+    mountedRef.current = true;
+    console.log("useMemberManagement: Hook mounted, mountedRef set to true");
+
+    return () => {
+      console.log(
+        "useMemberManagement: Hook unmounting, setting mountedRef to false"
+      );
+    };
+  }, []);
 
   useEffect(() => {
-    if (currentUser) {
+    if (currentUser?.id) {
+      // Only fetch schemes and location options once when user is available
+      const initializeData = async () => {
+        console.log(
+          "Initializing data, mountedRef.current:",
+          mountedRef.current
+        );
+        try {
+          await Promise.allSettled([fetchSchemes()]);
+        } catch (error) {
+          console.error("Error initializing data:", error);
+        }
+      };
+
+      initializeData();
+    }
+  }, [currentUser?.id, fetchSchemes]); // Include all dependencies
+
+  useEffect(() => {
+    if (currentUser?.id) {
       fetchMembers();
     }
-  }, [currentUser?.id, filters, currentPage]); // Optimized dependencies
+  }, [currentUser?.id, filters, currentPage, fetchMembers]); // Include fetchMembers dependency
 
   // Cache Management - Optimized with stable function references
   const refreshData = useCallback(async () => {
@@ -495,9 +547,8 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
     await Promise.all([
       fetchMembers({ force: true }, false),
       fetchSchemes(false),
-      fetchLocationOptions(false),
     ]);
-  }, [fetchMembers, fetchSchemes, fetchLocationOptions]);
+  }, [fetchMembers, fetchSchemes]);
 
   const clearCache = useCallback(() => {
     if (memberService.clearAllCache) {
@@ -508,6 +559,9 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
   // Cleanup on unmount to prevent memory leaks
   useEffect(() => {
     return () => {
+      console.log(
+        "useMemberManagement: Cleanup effect running, setting mountedRef to false"
+      );
       mountedRef.current = false;
 
       // Clear any pending timeouts
@@ -529,7 +583,6 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
     members: filteredMembers,
     schemes,
     availableParents,
-    locationOptions,
     dashboardStats,
     userAccessLevel,
 
@@ -561,7 +614,6 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
     fetchMembers,
     fetchSchemes,
     fetchAvailableParents,
-    fetchLocationOptions,
 
     // CRUD operations
     createMember,
