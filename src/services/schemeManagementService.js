@@ -139,7 +139,7 @@ class SchemeManagementService {
         throw new Error("Scheme name is required");
       }
 
-      const result = await this.apiCall("/api/v1/schemes", {
+      const result = await this.apiCall("/schemes", {
         method: "POST",
         body: JSON.stringify(schemeData),
       });

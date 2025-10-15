@@ -1,6 +1,4 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { UsersData } from "../../../assets/assets";
-import { SuperModal } from "../../../components/utility/SuperModel";
 import CommissionTable from "../../../components/super/resource_tab/CommisonTable";
 import CommissionEditableForm from "../../../components/super/resource_tab/CommissionEditableForm";
 import CommissionDropdown from "../../../components/super/resource_tab/CommissionDropdown";
@@ -20,15 +18,9 @@ import {
   ValidationErrorDisplay,
 } from "../../../utils/errorHandling";
 
-import {
-  FaPlus,
-  FaEye,
-  FaEdit,
-  FaTrash,
-  FaUser,
-  FaUsers,
-} from "react-icons/fa";
+import { FaPlus, FaEye, FaEdit, FaTrash } from "react-icons/fa";
 import { ClipLoader } from "react-spinners";
+import { SuperModal } from "../../../components/utility/SuperModel";
 
 /**
  * Enhanced SchemeManager Component with Hierarchical Role Access Control
