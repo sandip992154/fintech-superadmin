@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { LoadingButton } from "../components/ui/Loading";
-import { authNotifications } from "../services/modernNotificationService";
+import { authNotifications } from "../components/common/modernNotificationService";
 
 // Validation Schema
 const signInSchema = z.object({

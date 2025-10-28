@@ -37,8 +37,8 @@ const PaginatedTable = ({
 
   return (
     <div className="p-6 rounded-md w-full bg-white dark:bg-transparent dark:text-white">
-      {/* Table Wrapper with overflow fix */}
-      <div className="relative overflow-x-auto">
+      {/* Table Wrapper with overflow fix for dropdowns */}
+      <div className="relative overflow-x-auto overflow-y-visible">
         <table className="min-w-[1000px] w-full table-auto text-left text-sm">
           <thead>
             <tr className="bg-darkBlue/90 dark:bg-primaryBlue/30 text-white uppercase text-xs">
@@ -49,12 +49,12 @@ const PaginatedTable = ({
               ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="relative">
             {displayData.length > 0 ? (
               displayData.map((row, rowIndex) => (
                 <tr key={rowIndex} className="border-b">
                   {columns.map((col, colIndex) => (
-                    <td key={colIndex} className="px-4 py-2">
+                    <td key={colIndex} className="px-4 py-2 relative">
                       {col.render
                         ? col.render(row, rowIndex)
                         : row[col.accessor]}
