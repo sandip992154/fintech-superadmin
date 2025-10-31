@@ -1,16 +1,4 @@
-import axios from "axios";
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-
-// Create API instance with default config
-const api = axios.create({
-  baseURL: BASE_URL,
-  // timeout: 20000,
-  withCredentials: true,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
+import apiClient from "./apiClient.js";
 
 // Helper function for auth cleanup
 function clearAuthAndRedirect() {
@@ -19,87 +7,13 @@ function clearAuthAndRedirect() {
   window.location.href = "/signin";
 }
 
-// Request interceptor to add auth token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Response interceptor for error handling
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    console.error("API Error:", {
-      status: error.response?.status,
-      message: error.message,
-      url: error.config?.url,
-    });
-
-    // Handle validation errors
-    if (error.response?.status === 422) {
-      const validationErrors = error.response.data?.detail;
-      if (validationErrors) {
-        throw new Error(validationErrors);
-      }
-    }
-
-    // Handle authentication errors
-    if (error.response?.status === 401) {
-      const originalRequest = error.config;
-
-      // Don't try token refresh for login endpoints - pass the error directly
-      if (
-        originalRequest.url?.includes("/auth/login") ||
-        originalRequest.url?.includes("/auth/login-otp-verify")
-      ) {
-        // For login endpoints, extract and throw the actual error message
-        const errorMessage =
-          error.response?.data?.detail ||
-          error.response?.data?.message ||
-          "Authentication failed";
-        throw new Error(errorMessage);
-      }
-
-      const refreshToken = localStorage.getItem("refresh_token");
-
-      // Try token refresh if we have a refresh token and haven't tried yet
-      if (refreshToken && !originalRequest._retry) {
-        originalRequest._retry = true;
-        try {
-          const response = await api.post("/auth/refresh", {
-            refresh_token: refreshToken,
-          });
-          const { access_token } = response.data;
-          localStorage.setItem("token", access_token);
-          originalRequest.headers.Authorization = `Bearer ${access_token}`;
-          return api(originalRequest);
-        } catch (refreshError) {
-          clearAuthAndRedirect();
-          return Promise.reject(
-            new Error("Session expired. Please login again.")
-          );
-        }
-      }
-      clearAuthAndRedirect();
-      return Promise.reject(new Error("Session expired. Please login again."));
-    }
-    return Promise.reject(error);
-  }
-);
-
 // Superadmin authentication service
 const authService = {
   // Login with credentials
   login: async (formData) => {
     try {
       console.log("SuperAdminAuthService: Starting login request");
-      const response = await api.post("/auth/login", formData, {
+      const response = await apiClient.post("/auth/login", formData, {
         headers: {
           // Remove default Content-Type as browser will set it with boundary for FormData
           "Content-Type": undefined,
@@ -140,7 +54,7 @@ const authService = {
   verifyOtp: async (data) => {
     try {
       console.log("SuperAdminAuthService: Starting OTP verification");
-      const response = await api.post("/auth/login-otp-verify", data);
+      const response = await apiClient.post("/auth/login-otp-verify", data);
 
       if (response.data.access_token) {
         localStorage.setItem("token", response.data.access_token);
@@ -166,7 +80,7 @@ const authService = {
     formData.append("password", data.password);
 
     try {
-      const response = await api.post("/auth/login", formData, {
+      const response = await apiClient.post("/auth/login", formData, {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
         },
@@ -184,7 +98,7 @@ const authService = {
   verifyOtp: async (data) => {
     try {
       console.log("SuperAdminAuthService: Starting OTP verification");
-      const response = await api.post("/auth/login-otp-verify", {
+      const response = await apiClient.post("/auth/login-otp-verify", {
         otp: data.otp,
         identifier: data.identifier,
       });
@@ -210,7 +124,7 @@ const authService = {
   // Get current user
   getCurrentUser: async () => {
     try {
-      const response = await api.get("/auth/me");
+      const response = await apiClient.get("/auth/me");
       return response.data;
     } catch (error) {
       throw error;
@@ -220,7 +134,7 @@ const authService = {
   // Validate token
   validateToken: async () => {
     try {
-      const response = await api.get("/auth/verify");
+      const response = await apiClient.get("/auth/verify");
       return response.data;
     } catch (error) {
       throw error;
@@ -230,7 +144,7 @@ const authService = {
   // Password reset request - sends email with reset link
   forgotPassword: async (email, baseUrl = window.location.origin) => {
     try {
-      const response = await api.post("/auth/forgot-password", {
+      const response = await apiClient.post("/auth/forgot-password", {
         email,
         base_url: baseUrl,
       });
@@ -243,7 +157,7 @@ const authService = {
   // Reset password with token
   resetPassword: async (token, newPassword, confirmPassword) => {
     try {
-      const response = await api.post("/auth/reset-password", {
+      const response = await apiClient.post("/auth/reset-password", {
         token,
         new_password: newPassword,
         confirm_password: confirmPassword,
@@ -258,7 +172,7 @@ const authService = {
   refreshToken: async (refreshToken) => {
     try {
       console.log("SuperAdminAuthService: Starting token refresh");
-      const response = await api.post("/auth/refresh", {
+      const response = await apiClient.post("/auth/refresh", {
         refresh_token: refreshToken,
       });
 

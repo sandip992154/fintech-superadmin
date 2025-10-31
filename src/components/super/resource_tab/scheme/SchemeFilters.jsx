@@ -4,7 +4,12 @@ import React from "react";
  * SchemeFilters Component
  * Enhanced filter bar with better visual design matching the image
  */
-export const SchemeFilters = ({ filters, handleInputChange, onSearch }) => {
+export const SchemeFilters = ({
+  filters,
+  handleInputChange,
+  onSearch,
+  onClear,
+}) => {
   return (
     <div className="space-y-6">
       {/* First Row - Main Filters */}
@@ -84,14 +89,23 @@ export const SchemeFilters = ({ filters, handleInputChange, onSearch }) => {
         )}
       </div>
 
-      {/* Second Row - Search Button */}
-      <div className="flex justify-start">
+      {/* Second Row - Action Buttons */}
+      <div className="flex justify-start gap-4">
         <button
           onClick={onSearch}
           className="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-8 py-2.5 rounded-sm transition-colors duration-200 shadow-md hover:shadow-lg"
         >
           Search
         </button>
+
+        {onClear && (
+          <button
+            onClick={onClear}
+            className="bg-gray-500 hover:bg-gray-600 text-white font-semibold px-8 py-2.5 rounded-sm transition-colors duration-200 shadow-md hover:shadow-lg"
+          >
+            Clear Filters
+          </button>
+        )}
       </div>
     </div>
   );

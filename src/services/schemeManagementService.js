@@ -2,48 +2,18 @@
  * Scheme Management API Service
  * Handles all API calls for schemes, commissions, operators, and AEPS slabs
  */
+import apiClient from "./apiClient.js";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
-  ? `${import.meta.env.VITE_API_BASE_URL}/api/v1`
-  : "http://localhost:8000/api/v1";
+const API_BASE_URL = "/api/v1";
 
 class SchemeManagementService {
   constructor() {
     this.baseURL = API_BASE_URL;
   }
 
-  // Helper method for API calls
-  async apiCall(endpoint, options = {}) {
-    const url = `${this.baseURL}${endpoint}`;
-
-    const token = localStorage.getItem("token");
-    if (!token) {
-      throw new Error("Authentication required. Please login first.");
-    }
-
-    const defaultOptions = {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-    };
-    const config = { ...defaultOptions, ...options };
-
-    try {
-      const response = await fetch(url, config);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.detail || `HTTP error! status: ${response.status}`
-        );
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error(`API call failed for ${endpoint}:`, error);
-      throw error;
-    }
+  // Helper method to build endpoint
+  buildEndpoint(path) {
+    return `${this.baseURL}${path}`;
   }
 
   // ==================== SCHEMES API ====================
@@ -53,27 +23,17 @@ class SchemeManagementService {
    */
   async getSchemes(params = {}) {
     try {
-      const queryParams = new URLSearchParams();
-
-      // Handle all filter parameters
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== "") {
-          queryParams.append(key, value);
-        }
-      });
-
-      const queryString = queryParams.toString();
-      const endpoint = `/schemes${queryString ? `?${queryString}` : ""}`;
-
-      const response = await this.apiCall(endpoint);
+      const endpoint = this.buildEndpoint("/schemes");
+      const response = await apiClient.get(endpoint, { params });
 
       // Ensure response has expected structure
       return {
-        items: response.items || response || [],
+        items: response.data.items || response.data || [],
         total:
-          response.total || (Array.isArray(response) ? response.length : 0),
-        page: response.page || 1,
-        pageSize: response.pageSize || 10,
+          response.data.total ||
+          (Array.isArray(response.data) ? response.data.length : 0),
+        page: response.data.page || 1,
+        pageSize: response.data.pageSize || 10,
       };
     } catch (error) {
       console.error("Error fetching schemes:", error);
@@ -123,7 +83,9 @@ class SchemeManagementService {
       if (!id) {
         throw new Error("Scheme ID is required");
       }
-      return await this.apiCall(`/schemes/${id}`);
+      const endpoint = this.buildEndpoint(`/schemes/${id}`);
+      const response = await apiClient.get(endpoint);
+      return response.data;
     } catch (error) {
       console.error(`Error fetching scheme ${id}:`, error);
       throw new Error(`Failed to fetch scheme: ${error.message}`);
@@ -139,12 +101,9 @@ class SchemeManagementService {
         throw new Error("Scheme name is required");
       }
 
-      const result = await this.apiCall("/schemes", {
-        method: "POST",
-        body: JSON.stringify(schemeData),
-      });
-
-      return result;
+      const endpoint = this.buildEndpoint("/schemes");
+      const response = await apiClient.post(endpoint, schemeData);
+      return response.data;
     } catch (error) {
       console.error("Error creating scheme:", error);
       throw new Error(`Failed to create scheme: ${error.message}`);
@@ -160,12 +119,9 @@ class SchemeManagementService {
         throw new Error("Scheme ID is required");
       }
 
-      const result = await this.apiCall(`/schemes/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(schemeData),
-      });
-
-      return result;
+      const endpoint = this.buildEndpoint(`/schemes/${id}`);
+      const response = await apiClient.put(endpoint, schemeData);
+      return response.data;
     } catch (error) {
       console.error(`Error updating scheme ${id}:`, error);
       throw new Error(`Failed to update scheme: ${error.message}`);
@@ -181,11 +137,9 @@ class SchemeManagementService {
         throw new Error("Scheme ID is required");
       }
 
-      const result = await this.apiCall(`/schemes/${id}`, {
-        method: "DELETE",
-      });
-
-      return result;
+      const endpoint = this.buildEndpoint(`/schemes/${id}`);
+      const response = await apiClient.delete(endpoint);
+      return response.data;
     } catch (error) {
       console.error(`Error deleting scheme ${id}:`, error);
       throw new Error(`Failed to delete scheme: ${error.message}`);
@@ -201,12 +155,9 @@ class SchemeManagementService {
         throw new Error("Scheme ID is required");
       }
 
-      const result = await this.apiCall(`/schemes/${id}/status`, {
-        method: "PATCH",
-        body: JSON.stringify({ is_active: isActive }),
-      });
-
-      return result;
+      const endpoint = this.buildEndpoint(`/schemes/${id}/status`);
+      const response = await apiClient.patch(endpoint, { is_active: isActive });
+      return response.data;
     } catch (error) {
       console.error(`Error updating scheme status ${id}:`, error);
       throw new Error(`Failed to update scheme status: ${error.message}`);
@@ -220,23 +171,14 @@ class SchemeManagementService {
    */
   async getServiceOperators(params = {}) {
     try {
-      const queryParams = new URLSearchParams();
-
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== "") {
-          queryParams.append(key, value);
-        }
-      });
-
-      const queryString = queryParams.toString();
-      const endpoint = `/operators${queryString ? `?${queryString}` : ""}`;
-
-      const response = await this.apiCall(endpoint);
+      const endpoint = this.buildEndpoint("/operators");
+      const response = await apiClient.get(endpoint, { params });
 
       return {
-        items: response.items || response || [],
+        items: response.data.items || response.data || [],
         total:
-          response.total || (Array.isArray(response) ? response.length : 0),
+          response.data.total ||
+          (Array.isArray(response.data) ? response.data.length : 0),
       };
     } catch (error) {
       console.error("Error fetching service operators:", error);
@@ -253,10 +195,11 @@ class SchemeManagementService {
         throw new Error("Service type is required");
       }
 
-      const response = await this.apiCall(
-        `/operators?service_type=${serviceType}`
-      );
-      return response.items || response || [];
+      const endpoint = this.buildEndpoint("/operators");
+      const response = await apiClient.get(endpoint, {
+        params: { service_type: serviceType },
+      });
+      return response.data.items || response.data || [];
     } catch (error) {
       console.error(
         `Error fetching operators for service ${serviceType}:`,
@@ -275,12 +218,9 @@ class SchemeManagementService {
         throw new Error("Operator name is required");
       }
 
-      const result = await this.apiCall("/operators", {
-        method: "POST",
-        body: JSON.stringify(operatorData),
-      });
-
-      return result;
+      const endpoint = this.buildEndpoint("/operators");
+      const response = await apiClient.post(endpoint, operatorData);
+      return response.data;
     } catch (error) {
       console.error("Error creating operator:", error);
       throw new Error(`Failed to create operator: ${error.message}`);
@@ -296,12 +236,9 @@ class SchemeManagementService {
         throw new Error("Operator ID is required");
       }
 
-      const result = await this.apiCall(`/operators/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(operatorData),
-      });
-
-      return result;
+      const endpoint = this.buildEndpoint(`/operators/${id}`);
+      const response = await apiClient.put(endpoint, operatorData);
+      return response.data;
     } catch (error) {
       console.error(`Error updating operator ${id}:`, error);
       throw new Error(`Failed to update operator: ${error.message}`);
@@ -317,11 +254,9 @@ class SchemeManagementService {
         throw new Error("Operator ID is required");
       }
 
-      const result = await this.apiCall(`/operators/${id}`, {
-        method: "DELETE",
-      });
-
-      return result;
+      const endpoint = this.buildEndpoint(`/operators/${id}`);
+      const response = await apiClient.delete(endpoint);
+      return response.data;
     } catch (error) {
       console.error(`Error deleting operator ${id}:`, error);
       throw new Error(`Failed to delete operator: ${error.message}`);
@@ -341,12 +276,9 @@ class SchemeManagementService {
         throw new Error("Valid operators data array is required");
       }
 
-      const result = await this.apiCall("/operators/bulk", {
-        method: "POST",
-        body: JSON.stringify(operatorsData),
-      });
-
-      return result;
+      const endpoint = this.buildEndpoint("/operators/bulk");
+      const response = await apiClient.post(endpoint, operatorsData);
+      return response.data;
     } catch (error) {
       console.error("Error bulk creating operators:", error);
       throw new Error(`Failed to bulk create operators: ${error.message}`);
@@ -360,23 +292,14 @@ class SchemeManagementService {
    */
   async getCommissions(params = {}) {
     try {
-      const queryParams = new URLSearchParams();
-
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== "") {
-          queryParams.append(key, value);
-        }
-      });
-
-      const queryString = queryParams.toString();
-      const endpoint = `/commissions${queryString ? `?${queryString}` : ""}`;
-
-      const response = await this.apiCall(endpoint);
+      const endpoint = this.buildEndpoint("/commissions");
+      const response = await apiClient.get(endpoint, { params });
 
       return {
-        items: response.items || response || [],
+        items: response.data.items || response.data || [],
         total:
-          response.total || (Array.isArray(response) ? response.length : 0),
+          response.data.total ||
+          (Array.isArray(response.data) ? response.data.length : 0),
       };
     } catch (error) {
       console.error("Error fetching commissions:", error);
@@ -393,8 +316,9 @@ class SchemeManagementService {
         throw new Error("Scheme ID is required");
       }
 
-      const response = await this.apiCall(`/schemes/${schemeId}/commissions`);
-      return response.items || response || [];
+      const endpoint = this.buildEndpoint(`/schemes/${schemeId}/commissions`);
+      const response = await apiClient.get(endpoint);
+      return response.data.items || response.data || [];
     } catch (error) {
       console.error(
         `Error fetching commissions for scheme ${schemeId}:`,
@@ -419,13 +343,16 @@ class SchemeManagementService {
       // Fetch commissions for each service type
       for (const serviceType of serviceTypes) {
         try {
-          const response = await this.apiCall(
-            `/schemes/${schemeId}/commissions?service=${serviceType.value}`
+          const endpoint = this.buildEndpoint(
+            `/schemes/${schemeId}/commissions`
           );
+          const response = await apiClient.get(endpoint, {
+            params: { service: serviceType.value },
+          });
 
           // Store commissions by service type label
           allCommissions[serviceType.label] =
-            response.entries || response.items || response || [];
+            response.data.entries || response.data.items || response.data || [];
         } catch (error) {
           console.warn(
             `No commissions found for service ${serviceType.label}:`,
@@ -459,11 +386,14 @@ class SchemeManagementService {
         throw new Error("Service type is required");
       }
 
-      const response = await this.apiCall(
-        `/schemes/${schemeId}/commissions?service=${serviceType}`
-      );
+      const endpoint = this.buildEndpoint(`/schemes/${schemeId}/commissions`);
+      const response = await apiClient.get(endpoint, {
+        params: { service: serviceType },
+      });
 
-      return response.entries || response.items || response || [];
+      return (
+        response.data.entries || response.data.items || response.data || []
+      );
     } catch (error) {
       console.error(
         `Error fetching commissions for scheme ${schemeId} and service ${serviceType}:`,
@@ -492,12 +422,9 @@ class SchemeManagementService {
         throw new Error("Commission data is required");
       }
 
-      const result = await this.apiCall("/commissions", {
-        method: "POST",
-        body: JSON.stringify(commissionData),
-      });
-
-      return result;
+      const endpoint = this.buildEndpoint("/commissions");
+      const response = await apiClient.post(endpoint, commissionData);
+      return response.data;
     } catch (error) {
       console.error("Error creating commission:", error);
       throw new Error(`Failed to create commission: ${error.message}`);
@@ -513,12 +440,9 @@ class SchemeManagementService {
         throw new Error("Commission ID is required");
       }
 
-      const result = await this.apiCall(`/commissions/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(commissionData),
-      });
-
-      return result;
+      const endpoint = this.buildEndpoint(`/commissions/${id}`);
+      const response = await apiClient.put(endpoint, commissionData);
+      return response.data;
     } catch (error) {
       console.error(`Error updating commission ${id}:`, error);
       throw new Error(`Failed to update commission: ${error.message}`);
@@ -534,11 +458,9 @@ class SchemeManagementService {
         throw new Error("Commission ID is required");
       }
 
-      const result = await this.apiCall(`/commissions/${id}`, {
-        method: "DELETE",
-      });
-
-      return result;
+      const endpoint = this.buildEndpoint(`/commissions/${id}`);
+      const response = await apiClient.delete(endpoint);
+      return response.data;
     } catch (error) {
       console.error(`Error deleting commission ${id}:`, error);
       throw new Error(`Failed to delete commission: ${error.message}`);
@@ -561,15 +483,11 @@ class SchemeManagementService {
       // Extract scheme_id for path and remove it from body
       const { scheme_id, ...bodyData } = commissionsData;
 
-      const result = await this.apiCall(
-        `/schemes/${scheme_id}/commissions/bulk`,
-        {
-          method: "POST",
-          body: JSON.stringify(bodyData),
-        }
+      const endpoint = this.buildEndpoint(
+        `/schemes/${scheme_id}/commissions/bulk`
       );
-
-      return result;
+      const response = await apiClient.post(endpoint, bodyData);
+      return response.data;
     } catch (error) {
       console.error("Error bulk creating commissions:", error);
       throw new Error(`Failed to bulk create commissions: ${error.message}`);
@@ -592,15 +510,11 @@ class SchemeManagementService {
       // Extract scheme_id for path and remove it from body
       const { scheme_id, ...bodyData } = commissionsData;
 
-      const result = await this.apiCall(
-        `/schemes/${scheme_id}/commissions/bulk-update`,
-        {
-          method: "PUT",
-          body: JSON.stringify(bodyData),
-        }
+      const endpoint = this.buildEndpoint(
+        `/schemes/${scheme_id}/commissions/bulk-update`
       );
-
-      return result;
+      const response = await apiClient.put(endpoint, bodyData);
+      return response.data;
     } catch (error) {
       console.error("Error bulk updating commissions:", error);
       throw new Error(`Failed to bulk update commissions: ${error.message}`);
@@ -699,12 +613,9 @@ class SchemeManagementService {
         throw new Error("Calculation parameters are required");
       }
 
-      const queryParams = new URLSearchParams(params);
-      const result = await this.apiCall(
-        `/commissions/calculate?${queryParams}`
-      );
-
-      return result;
+      const endpoint = this.buildEndpoint("/commissions/calculate");
+      const response = await apiClient.get(endpoint, { params });
+      return response.data;
     } catch (error) {
       console.error("Error calculating commission:", error);
       throw new Error(`Failed to calculate commission: ${error.message}`);
@@ -720,12 +631,13 @@ class SchemeManagementService {
         throw new Error("Scheme ID is required");
       }
 
-      const queryParams = new URLSearchParams({ format, ...filters });
-      const result = await this.apiCall(
-        `/schemes/${schemeId}/commissions/export?${queryParams}`
+      const endpoint = this.buildEndpoint(
+        `/schemes/${schemeId}/commissions/export`
       );
-
-      return result;
+      const response = await apiClient.get(endpoint, {
+        params: { format, ...filters },
+      });
+      return response.data;
     } catch (error) {
       console.error(
         `Error exporting commissions for scheme ${schemeId}:`,
@@ -752,21 +664,15 @@ class SchemeManagementService {
       formData.append("file", file);
       formData.append("format", format);
 
-      const result = await this.apiCall(
-        `/schemes/${schemeId}/commissions/import`,
-        {
-          method: "POST",
-          headers: {
-            // Remove Content-Type to let browser set it with boundary for FormData
-            ...(localStorage.getItem("token") && {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
-            }),
-          },
-          body: formData,
-        }
+      const endpoint = this.buildEndpoint(
+        `/schemes/${schemeId}/commissions/import`
       );
-
-      return result;
+      const response = await apiClient.post(endpoint, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      return response.data;
     } catch (error) {
       console.error(
         `Error importing commissions for scheme ${schemeId}:`,
@@ -783,10 +689,9 @@ class SchemeManagementService {
    */
   async getCommissionReport(params = {}) {
     try {
-      const queryParams = new URLSearchParams(params);
-      const result = await this.apiCall(`/commissions/report?${queryParams}`);
-
-      return result;
+      const endpoint = this.buildEndpoint("/commissions/report");
+      const response = await apiClient.get(endpoint, { params });
+      return response.data;
     } catch (error) {
       console.error("Error fetching commission report:", error);
       throw new Error(`Failed to fetch commission report: ${error.message}`);
@@ -938,11 +843,13 @@ class SchemeManagementService {
         throw new Error("Commission ID is required");
       }
 
-      const response = await this.apiCall(`/commissions/${commissionId}/slabs`);
+      const endpoint = this.buildEndpoint(`/commissions/${commissionId}/slabs`);
+      const response = await apiClient.get(endpoint);
       return {
-        items: response.items || response || [],
+        items: response.data.items || response.data || [],
         total:
-          response.total || (Array.isArray(response) ? response.length : 0),
+          response.data.total ||
+          (Array.isArray(response.data) ? response.data.length : 0),
       };
     } catch (error) {
       console.error(
@@ -966,12 +873,9 @@ class SchemeManagementService {
         throw new Error("Commission ID is required");
       }
 
-      const result = await this.apiCall("/commission-slabs", {
-        method: "POST",
-        body: JSON.stringify(slabData),
-      });
-
-      return result;
+      const endpoint = this.buildEndpoint("/commission-slabs");
+      const response = await apiClient.post(endpoint, slabData);
+      return response.data;
     } catch (error) {
       console.error("Error creating commission slab:", error);
       throw new Error(`Failed to create commission slab: ${error.message}`);
@@ -987,12 +891,9 @@ class SchemeManagementService {
         throw new Error("Commission slab ID is required");
       }
 
-      const result = await this.apiCall(`/commission-slabs/${slabId}`, {
-        method: "PUT",
-        body: JSON.stringify(slabData),
-      });
-
-      return result;
+      const endpoint = this.buildEndpoint(`/commission-slabs/${slabId}`);
+      const response = await apiClient.put(endpoint, slabData);
+      return response.data;
     } catch (error) {
       console.error(`Error updating commission slab ${slabId}:`, error);
       throw new Error(`Failed to update commission slab: ${error.message}`);
@@ -1008,11 +909,9 @@ class SchemeManagementService {
         throw new Error("Commission slab ID is required");
       }
 
-      const result = await this.apiCall(`/commission-slabs/${slabId}`, {
-        method: "DELETE",
-      });
-
-      return result;
+      const endpoint = this.buildEndpoint(`/commission-slabs/${slabId}`);
+      const response = await apiClient.delete(endpoint);
+      return response.data;
     } catch (error) {
       console.error(`Error deleting commission slab ${slabId}:`, error);
       throw new Error(`Failed to delete commission slab: ${error.message}`);
@@ -1028,16 +927,15 @@ class SchemeManagementService {
         throw new Error("Commission ID, amount, and role are required");
       }
 
-      const queryParams = new URLSearchParams({
-        commission_id: commissionId,
-        amount: amount.toString(),
-        role: role,
+      const endpoint = this.buildEndpoint("/commissions/calculate-aeps");
+      const response = await apiClient.get(endpoint, {
+        params: {
+          commission_id: commissionId,
+          amount: amount.toString(),
+          role: role,
+        },
       });
-
-      const result = await this.apiCall(
-        `/commissions/calculate-aeps?${queryParams}`
-      );
-      return result;
+      return response.data;
     } catch (error) {
       console.error("Error calculating AEPS commission:", error);
       throw new Error(`Failed to calculate AEPS commission: ${error.message}`);

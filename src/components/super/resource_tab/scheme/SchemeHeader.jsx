@@ -24,7 +24,27 @@ export const SchemeHeader = ({ userRole, dashboardStats, lastUpdated }) => {
     );
   };
 
+  const getRoleDescription = (role) => {
+    const descriptionMap = {
+      super_admin:
+        "Administrative control over all schemes and commission structures",
+      admin:
+        "Administrative control over all schemes and commission structures",
+      whitelabel: "View and manage schemes assigned to your whitelabel portal",
+      masterdistributor:
+        "View commission schemes applicable to your distributor network",
+      distributor: "View commission schemes for your retailer network",
+      retailer: "View your assigned commission schemes and rates",
+    };
+
+    return (
+      descriptionMap[role?.toLowerCase()] ||
+      "View your assigned commission schemes and rates"
+    );
+  };
+
   const roleBadge = getRoleBadge(userRole);
+  const roleDescription = getRoleDescription(userRole);
 
   return (
     <div className="p-6 border-gray-200 dark:border-gray-700">
@@ -45,7 +65,7 @@ export const SchemeHeader = ({ userRole, dashboardStats, lastUpdated }) => {
               </span>
             </div>
             <p className="text-gray-600 dark:text-gray-400 text-sm">
-              Administrative control over all schemes and commission structures
+              {roleDescription}
             </p>
           </div>
         </div>

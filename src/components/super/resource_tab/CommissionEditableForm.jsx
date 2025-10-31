@@ -794,63 +794,64 @@ const CommissionEditableForm = memo(
 
     return (
       <>
-        <div className="mb-4">
-          <div className="flex justify-between items-start">
-            <div>
-              <h3 className="text-lg font-semibold mb-2">
-                {serviceKey.replace(/([A-Z])/g, " $1").trim()} Commission
-                Settings
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Set commission rates for each operator. Leave empty fields to
-                skip operators.
-              </p>
-            </div>
+        <div className="w-full">
+          <div className="mb-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">
+                  {serviceKey.replace(/([A-Z])/g, " $1").trim()} Commission
+                  Settings
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Set commission rates for each operator. Leave empty fields to
+                  skip operators.
+                </p>
+              </div>
 
-            {/* Action Buttons */}
-            <div className="flex space-x-2">
-              {mappedServiceType === "aeps" &&
-                hasCommissionPermission("update") && (
+              {/* Action Buttons */}
+              <div className="flex space-x-2">
+                {mappedServiceType === "aeps" &&
+                  hasCommissionPermission("update") && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAEPSSlabs(true)}
+                      disabled={
+                        !editableCommission.some(
+                          (comm) => comm.isExisting && comm.id
+                        )
+                      }
+                      className={`text-sm ${
+                        editableCommission.some(
+                          (comm) => comm.isExisting && comm.id
+                        )
+                          ? "btn-secondary"
+                          : "btn-secondary opacity-50 cursor-not-allowed"
+                      }`}
+                      title={
+                        !editableCommission.some(
+                          (comm) => comm.isExisting && comm.id
+                        )
+                          ? "Save commissions first to manage AEPS slabs"
+                          : "Manage AEPS Commission Slabs"
+                      }
+                    >
+                      AEPS Slabs
+                    </button>
+                  )}
+                {hasCommissionPermission("create") && (
                   <button
                     type="button"
-                    onClick={() => setShowAEPSSlabs(true)}
-                    disabled={
-                      !editableCommission.some(
-                        (comm) => comm.isExisting && comm.id
-                      )
-                    }
-                    className={`text-sm ${
-                      editableCommission.some(
-                        (comm) => comm.isExisting && comm.id
-                      )
-                        ? "btn-secondary"
-                        : "btn-secondary opacity-50 cursor-not-allowed"
-                    }`}
-                    title={
-                      !editableCommission.some(
-                        (comm) => comm.isExisting && comm.id
-                      )
-                        ? "Save commissions first to manage AEPS slabs"
-                        : "Manage AEPS Commission Slabs"
-                    }
+                    onClick={() => setShowImportExport(true)}
+                    className="btn-secondary text-sm"
                   >
-                    AEPS Slabs
+                    Import/Export
                   </button>
                 )}
-              {hasCommissionPermission("create") && (
-                <button
-                  type="button"
-                  onClick={() => setShowImportExport(true)}
-                  className="btn-secondary text-sm"
-                >
-                  Import/Export
-                </button>
-              )}
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* <ExcelToJsonWithExcelJS
+          {/* <ExcelToJsonWithExcelJS
           requiredColumns={[
             "provider",
             "commission_type",
@@ -867,344 +868,345 @@ const CommissionEditableForm = memo(
           validProviders={operators.map((op) => op.name)}
         /> */}
 
-        {/* Legend for commission status */}
-        <div className="flex items-center space-x-6 mb-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
-          <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Commission Status:
-          </div>
-          <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 bg-green-500 rounded"></div>
-            <span className="text-xs text-green-700 dark:text-green-300">
-              Existing (will be updated)
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 bg-blue-500 rounded"></div>
-            <span className="text-xs text-blue-700 dark:text-blue-300">
-              New (will be created)
-            </span>
-          </div>
-        </div>
-
-        {/* Progress Indicator */}
-        {submissionProgress.show && (
-          <div className="mb-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-            <div className="flex items-center space-x-3 mb-3">
-              {submissionProgress.status === "processing" && (
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
-              )}
-              {submissionProgress.status === "success" && (
-                <div className="h-5 w-5 rounded-full bg-green-500 flex items-center justify-center">
-                  <svg
-                    className="h-3 w-3 text-white"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-              )}
-              {submissionProgress.status === "error" && (
-                <div className="h-5 w-5 rounded-full bg-red-500 flex items-center justify-center">
-                  <svg
-                    className="h-3 w-3 text-white"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-              )}
-              {submissionProgress.status === "partial" && (
-                <div className="h-5 w-5 rounded-full bg-yellow-500 flex items-center justify-center">
-                  <svg
-                    className="h-3 w-3 text-white"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-              )}
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                {submissionProgress.message}
+          {/* Legend for commission status */}
+          <div className="flex items-center space-x-6 mb-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Commission Status:
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-green-500 rounded"></div>
+              <span className="text-xs text-green-700 dark:text-green-300">
+                Existing (will be updated)
               </span>
             </div>
-
-            {submissionProgress.details.total > 0 && (
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
-                  <span>Progress</span>
-                  <span>
-                    {submissionProgress.details.processed}/
-                    {submissionProgress.details.total}
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                  <div
-                    className={`h-2 rounded-full transition-all duration-300 ${
-                      submissionProgress.status === "success"
-                        ? "bg-green-500"
-                        : submissionProgress.status === "error"
-                        ? "bg-red-500"
-                        : submissionProgress.status === "partial"
-                        ? "bg-yellow-500"
-                        : "bg-blue-500"
-                    }`}
-                    style={{
-                      width: `${Math.min(
-                        100,
-                        (submissionProgress.details.processed /
-                          submissionProgress.details.total) *
-                          100
-                      )}%`,
-                    }}
-                  ></div>
-                </div>
-
-                {(submissionProgress.details.created > 0 ||
-                  submissionProgress.details.updated > 0 ||
-                  submissionProgress.details.failed > 0) && (
-                  <div className="flex flex-wrap gap-4 text-xs pt-2">
-                    {submissionProgress.details.created > 0 && (
-                      <span className="text-green-600 dark:text-green-400">
-                        ✓ {submissionProgress.details.created} created
-                      </span>
-                    )}
-                    {submissionProgress.details.updated > 0 && (
-                      <span className="text-blue-600 dark:text-blue-400">
-                        ↻ {submissionProgress.details.updated} updated
-                      </span>
-                    )}
-                    {submissionProgress.details.failed > 0 && (
-                      <span className="text-red-600 dark:text-red-400">
-                        ✗ {submissionProgress.details.failed} failed
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {submissionProgress.details.errors.length > 0 && (
-                  <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">
-                    <div className="text-xs text-red-700 dark:text-red-300 font-medium mb-1">
-                      Errors:
-                    </div>
-                    <ul className="text-xs text-red-600 dark:text-red-400 space-y-1 max-h-20 overflow-y-auto">
-                      {submissionProgress.details.errors
-                        .slice(0, 5)
-                        .map((error, index) => (
-                          <li key={index} className="truncate">
-                            • {error}
-                          </li>
-                        ))}
-                      {submissionProgress.details.errors.length > 5 && (
-                        <li className="text-red-500 italic">
-                          ... and {submissionProgress.details.errors.length - 5}{" "}
-                          more
-                        </li>
-                      )}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-blue-500 rounded"></div>
+              <span className="text-xs text-blue-700 dark:text-blue-300">
+                New (will be created)
+              </span>
+            </div>
           </div>
-        )}
 
-        <form className="space-y-4 max-w-full">
-          <div className="max-h-[60vh] overflow-y-auto ring-1 ring-gray-700 rounded-md">
-            <table className="w-full text-sm table-auto border border-gray-700 border-collapse">
-              <thead className="text-gray-400 uppercase bg-darkBlue sticky -top-1 z-10">
-                <tr>
-                  <th className="py-3 px-4 text-left border border-gray-700">
-                    Operator
-                  </th>
-                  <th className="py-3 px-4 text-left border border-gray-700">
-                    Type
-                  </th>
-                  {visibleColumns.map((column) => (
-                    <th
-                      key={column.key}
-                      className="py-3 px-4 text-left border border-gray-700"
+          {/* Progress Indicator */}
+          {submissionProgress.show && (
+            <div className="mb-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm max-h-80 overflow-y-auto">
+              <div className="flex items-center space-x-3 mb-3">
+                {submissionProgress.status === "processing" && (
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500 flex-shrink-0"></div>
+                )}
+                {submissionProgress.status === "success" && (
+                  <div className="h-5 w-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                    <svg
+                      className="h-3 w-3 text-white"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
                     >
-                      {column.label}
-                      {!canEditCommissionField(column.key) && (
-                        <span className="ml-1 text-xs text-gray-400">
-                          (View Only)
+                      <path
+                        fillRule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                )}
+                {submissionProgress.status === "error" && (
+                  <div className="h-5 w-5 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
+                    <svg
+                      className="h-3 w-3 text-white"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                )}
+                {submissionProgress.status === "partial" && (
+                  <div className="h-5 w-5 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0">
+                    <svg
+                      className="h-3 w-3 text-white"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                )}
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
+                  {submissionProgress.message}
+                </span>
+              </div>
+
+              {submissionProgress.details.total > 0 && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+                    <span>Progress</span>
+                    <span>
+                      {submissionProgress.details.processed}/
+                      {submissionProgress.details.total}
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        submissionProgress.status === "success"
+                          ? "bg-green-500"
+                          : submissionProgress.status === "error"
+                          ? "bg-red-500"
+                          : submissionProgress.status === "partial"
+                          ? "bg-yellow-500"
+                          : "bg-blue-500"
+                      }`}
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          (submissionProgress.details.processed /
+                            submissionProgress.details.total) *
+                            100
+                        )}%`,
+                      }}
+                    ></div>
+                  </div>
+
+                  {(submissionProgress.details.created > 0 ||
+                    submissionProgress.details.updated > 0 ||
+                    submissionProgress.details.failed > 0) && (
+                    <div className="flex flex-wrap gap-4 text-xs pt-2">
+                      {submissionProgress.details.created > 0 && (
+                        <span className="text-green-600 dark:text-green-400">
+                          ✓ {submissionProgress.details.created} created
                         </span>
                       )}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {editableCommission?.map((row, i) => (
-                  <tr
-                    key={i}
-                    className={`dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 ${
-                      row.isExisting
-                        ? "border-l-4 border-l-green-500 bg-green-50 dark:bg-green-900/20"
-                        : "border-l-4 border-l-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                    }`}
-                  >
-                    <td className="py-2 px-4 border border-gray-700 font-medium">
-                      <div className="flex items-center space-x-2">
-                        <span>{row.provider}</span>
-                        {row.isExisting ? (
-                          <span className="inline-flex items-center px-2 py-1 text-xs font-medium text-green-800 bg-green-100 rounded-full dark:text-green-300 dark:bg-green-800/30">
-                            Existing
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-800 bg-blue-100 rounded-full dark:text-blue-300 dark:bg-blue-800/30">
-                            New
-                          </span>
-                        )}
+                      {submissionProgress.details.updated > 0 && (
+                        <span className="text-blue-600 dark:text-blue-400">
+                          ↻ {submissionProgress.details.updated} updated
+                        </span>
+                      )}
+                      {submissionProgress.details.failed > 0 && (
+                        <span className="text-red-600 dark:text-red-400">
+                          ✗ {submissionProgress.details.failed} failed
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {submissionProgress.details.errors.length > 0 && (
+                    <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">
+                      <div className="text-xs text-red-700 dark:text-red-300 font-medium mb-1">
+                        Errors:
                       </div>
-                    </td>
-                    <td className="py-2 px-4 border border-gray-700">
-                      <select
-                        value={row.commission_type || "percentage"}
-                        onChange={(e) =>
-                          handleChange(i, "commission_type", e.target.value)
-                        }
-                        className="w-full dark:bg-darkBlue dark:text-white ring-1 ring-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="percentage">Percentage (%)</option>
-                        <option value="fixed">Fixed (₹)</option>
-                        {serviceKey === "AEPS" && (
-                          <option value="slab_based">Slab Based</option>
+                      <ul className="text-xs text-red-600 dark:text-red-400 space-y-1 max-h-20 overflow-y-auto">
+                        {submissionProgress.details.errors
+                          .slice(0, 5)
+                          .map((error, index) => (
+                            <li key={index} className="truncate">
+                              • {error}
+                            </li>
+                          ))}
+                        {submissionProgress.details.errors.length > 5 && (
+                          <li className="text-red-500 italic">
+                            ... and{" "}
+                            {submissionProgress.details.errors.length - 5} more
+                          </li>
                         )}
-                      </select>
-                    </td>
-                    {visibleColumns.map((column) => {
-                      const canEdit = canEditCommissionField(column.key);
-                      const value = row[column.key] || "";
-
-                      return (
-                        <td
-                          key={column.key}
-                          className="py-2 px-4 border border-gray-700"
-                        >
-                          {canEdit ? (
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={value}
-                              onChange={(e) =>
-                                handleChange(i, column.key, e.target.value)
-                              }
-                              className="w-full dark:bg-darkBlue dark:text-white ring-1 ring-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="0.00"
-                            />
-                          ) : (
-                            <div className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-md">
-                              {value || "0.00"}
-                            </div>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {Array.isArray(editableCommission) &&
-            editableCommission.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                <div className="mb-2">
-                  No operators found for this service type.
+                      </ul>
+                    </div>
+                  )}
                 </div>
-                <div className="text-sm">
-                  Service: {mappedServiceType} | Operators Available:{" "}
-                  {operators.length}
-                </div>
-                {operators.length > 0 && (
-                  <button
-                    onClick={reloadOperators}
-                    className="mt-2 text-blue-500 hover:text-blue-700 text-sm underline"
-                  >
-                    Reload Operators
-                  </button>
-                )}
-              </div>
-            )}
-
-          <div className="flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-2 border border-gray-300 rounded-md font-medium hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={
-                !canEditCommissions ||
-                isSubmitting ||
-                !Array.isArray(editableCommission) ||
-                editableCommission.length === 0
-              }
-              className={`px-6 py-2 rounded-md font-medium text-white ${
-                !canEditCommissions ||
-                isSubmitting ||
-                !Array.isArray(editableCommission) ||
-                editableCommission.length === 0
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-[#7C5CFC] hover:bg-[#6938EF]"
-              }`}
-              title={
-                !canEditCommissions
-                  ? "You don't have permission to edit commissions"
-                  : ""
-              }
-            >
-              {isSubmitting ? (
-                <div className="flex items-center">
-                  <svg
-                    className="animate-spin -ml-1 mr-3 h-4 w-4 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Saving...
-                </div>
-              ) : (
-                "Save Commissions"
               )}
-            </button>
-          </div>
-        </form>
+            </div>
+          )}
+
+          <form className="space-y-4 max-w-full">
+            <div className="max-h-[50vh] overflow-y-auto ring-1 ring-gray-700 rounded-md">
+              <table className="w-full text-sm table-auto border border-gray-700 border-collapse">
+                <thead className="text-gray-400 uppercase bg-darkBlue sticky top-0 z-10">
+                  <tr>
+                    <th className="py-3 px-4 text-left border border-gray-700 bg-darkBlue">
+                      Operator
+                    </th>
+                    <th className="py-3 px-4 text-left border border-gray-700 bg-darkBlue">
+                      Type
+                    </th>
+                    {visibleColumns.map((column) => (
+                      <th
+                        key={column.key}
+                        className="py-3 px-4 text-left border border-gray-700 bg-darkBlue"
+                      >
+                        {column.label}
+                        {!canEditCommissionField(column.key) && (
+                          <span className="ml-1 text-xs text-gray-400">
+                            (View Only)
+                          </span>
+                        )}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {editableCommission?.map((row, i) => (
+                    <tr
+                      key={i}
+                      className={`dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                        row.isExisting
+                          ? "border-l-4 border-l-green-500 bg-green-50 dark:bg-green-900/20"
+                          : "border-l-4 border-l-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                      }`}
+                    >
+                      <td className="py-2 px-4 border border-gray-700 font-medium">
+                        <div className="flex items-center space-x-2">
+                          <span>{row.provider}</span>
+                          {row.isExisting ? (
+                            <span className="inline-flex items-center px-2 py-1 text-xs font-medium text-green-800 bg-green-100 rounded-full dark:text-green-300 dark:bg-green-800/30">
+                              Existing
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-800 bg-blue-100 rounded-full dark:text-blue-300 dark:bg-blue-800/30">
+                              New
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2 px-4 border border-gray-700">
+                        <select
+                          value={row.commission_type || "percentage"}
+                          onChange={(e) =>
+                            handleChange(i, "commission_type", e.target.value)
+                          }
+                          className="w-full dark:bg-darkBlue dark:text-white ring-1 ring-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="percentage">Percentage (%)</option>
+                          <option value="fixed">Fixed (₹)</option>
+                          {serviceKey === "AEPS" && (
+                            <option value="slab_based">Slab Based</option>
+                          )}
+                        </select>
+                      </td>
+                      {visibleColumns.map((column) => {
+                        const canEdit = canEditCommissionField(column.key);
+                        const value = row[column.key] || "";
+
+                        return (
+                          <td
+                            key={column.key}
+                            className="py-2 px-4 border border-gray-700"
+                          >
+                            {canEdit ? (
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={value}
+                                onChange={(e) =>
+                                  handleChange(i, column.key, e.target.value)
+                                }
+                                className="w-full dark:bg-darkBlue dark:text-white ring-1 ring-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="0.00"
+                              />
+                            ) : (
+                              <div className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-md">
+                                {value || "0.00"}
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {Array.isArray(editableCommission) &&
+              editableCommission.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  <div className="mb-2">
+                    No operators found for this service type.
+                  </div>
+                  <div className="text-sm">
+                    Service: {mappedServiceType} | Operators Available:{" "}
+                    {operators.length}
+                  </div>
+                  {operators.length > 0 && (
+                    <button
+                      onClick={reloadOperators}
+                      className="mt-2 text-blue-500 hover:text-blue-700 text-sm underline"
+                    >
+                      Reload Operators
+                    </button>
+                  )}
+                </div>
+              )}
+
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-6 py-2 border border-gray-300 rounded-md font-medium hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={
+                  !canEditCommissions ||
+                  isSubmitting ||
+                  !Array.isArray(editableCommission) ||
+                  editableCommission.length === 0
+                }
+                className={`px-6 py-2 rounded-md font-medium text-white ${
+                  !canEditCommissions ||
+                  isSubmitting ||
+                  !Array.isArray(editableCommission) ||
+                  editableCommission.length === 0
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-[#7C5CFC] hover:bg-[#6938EF]"
+                }`}
+                title={
+                  !canEditCommissions
+                    ? "You don't have permission to edit commissions"
+                    : ""
+                }
+              >
+                {isSubmitting ? (
+                  <div className="flex items-center">
+                    <svg
+                      className="animate-spin -ml-1 mr-3 h-4 w-4 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    Saving...
+                  </div>
+                ) : (
+                  "Save Commissions"
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
 
         {/* AEPS Slab Manager Modal */}
         {showAEPSSlabs &&

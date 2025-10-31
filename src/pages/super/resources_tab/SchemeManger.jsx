@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { toast } from "react-toastify";
 
 // Hooks and Utils
@@ -187,19 +187,43 @@ export const SchemeManager = () => {
       setLoading(true);
       setErrors({ general: null, validation: [] });
 
-      const filterParams = schemeManagementService.buildFilterParams({
+      // Build filter params properly
+      const filterParams = {
         skip: (currentPage - 1) * pageSize,
         limit: pageSize,
-        search: filters.searchValue,
-        is_active: filters.is_active,
-        from_date: filters.from_date,
-        to_date: filters.to_date,
-        filter_user_id: filters.filter_user_id,
-      });
+      };
+
+      // Add search filter if provided
+      if (filters.searchValue && filters.searchValue.trim()) {
+        filterParams.search = filters.searchValue.trim();
+      }
+
+      // Add status filter - convert string to boolean properly
+      if (filters.is_active && filters.is_active !== "all") {
+        filterParams.is_active = filters.is_active === "true";
+      }
+
+      // Add date filters
+      if (filters.from_date) {
+        filterParams.from_date = filters.from_date;
+      }
+
+      if (filters.to_date) {
+        filterParams.to_date = filters.to_date;
+      }
+
+      // Add user filter
+      if (filters.filter_user_id) {
+        filterParams.filter_user_id = filters.filter_user_id;
+      }
+
+      console.log("Loading schemes with filters:", filterParams);
 
       const response = await schemeManagementService.getSchemesWithFilters(
         filterParams
       );
+
+      console.log("Schemes response:", response);
 
       let schemesData = response.items || response || [];
 
@@ -235,9 +259,23 @@ export const SchemeManager = () => {
   // ============================================================================
 
   const handleInputChange = useCallback((name, value) => {
+    console.log(`Filter changed - ${name}:`, value);
     setFilters((prev) => ({ ...prev, [name]: value }));
-    setCurrentPage(1);
+    setCurrentPage(1); // Reset to first page when filters change
   }, []);
+
+  const handleClearFilters = useCallback(() => {
+    setFilters({
+      searchValue: "",
+      is_active: "all",
+      from_date: "",
+      to_date: "",
+      filter_user_id: "",
+    });
+    setCurrentPage(1);
+    // Auto-reload after clearing
+    setTimeout(() => loadSchemeData(), 100);
+  }, [loadSchemeData]);
 
   const handleToggle = useCallback(
     async (scheme, index) => {
@@ -245,66 +283,78 @@ export const SchemeManager = () => {
       console.log("Original scheme:", scheme);
       console.log("Current is_active:", scheme.is_active);
       console.log("Index:", index);
+      console.log("New is_active will be:", !scheme.is_active);
 
-      const result = await withErrorHandling(
-        async () => {
-          setOperationLoading("update", true);
-          setLoading(true);
+      const newActiveState = !scheme.is_active;
 
-          const updatedScheme = {
-            ...scheme,
-            is_active: !scheme.is_active,
-          };
+      try {
+        setOperationLoading("update", true);
 
-          const response = await schemeManagementService.updateScheme(
-            scheme.id,
-            updatedScheme
-          );
+        const updatedScheme = {
+          ...scheme,
+          is_active: newActiveState,
+        };
 
-          if (response.success) {
-            // Update local state
-            setFilteredData((prev) =>
-              prev.map((s, i) =>
-                i === index ? { ...s, is_active: !s.is_active } : s
-              )
+        console.log("Sending to backend:", updatedScheme);
+
+        const response = await schemeManagementService.updateScheme(
+          scheme.id,
+          updatedScheme
+        );
+
+        console.log("Backend response:", response);
+
+        if (response.success || response) {
+          // Update filteredData immediately
+          setFilteredData((prev) => {
+            const updated = prev.map((s) =>
+              s.id === scheme.id ? { ...s, is_active: newActiveState } : s
             );
-            setSchemes((prev) =>
-              prev.map((s) =>
-                s.id === scheme.id ? { ...s, is_active: !s.is_active } : s
-              )
-            );
+            console.log("Updated filteredData:", updated);
+            return updated;
+          });
 
-            // Update dashboard stats
-            const newActiveCount = filteredData.filter((s, i) =>
-              i === index ? !s.is_active : s.is_active
-            ).length;
-            setDashboardStats((prev) => ({
+          // Update schemes array
+          setSchemes((prev) => {
+            const updated = prev.map((s) =>
+              s.id === scheme.id ? { ...s, is_active: newActiveState } : s
+            );
+            console.log("Updated schemes:", updated);
+            return updated;
+          });
+
+          // Update dashboard stats
+          setDashboardStats((prev) => {
+            const newActiveCount = newActiveState
+              ? prev.activeSchemes + 1
+              : prev.activeSchemes - 1;
+            return {
               ...prev,
               activeSchemes: newActiveCount,
-            }));
-          }
+            };
+          });
 
-          return response;
-        },
-        {
-          successMessage: `Scheme ${
-            !scheme.is_active ? "activated" : "deactivated"
-          } successfully`,
-          errorMessage: "Failed to update scheme status",
-          onError: (error) => {
-            console.error("Toggle error:", error);
-            setErrors({
-              general: error.message || "Failed to update scheme status",
-              validation: [],
-            });
-          },
+          toast.success(
+            `Scheme ${
+              newActiveState ? "activated" : "deactivated"
+            } successfully`
+          );
+        } else {
+          throw new Error("Failed to update scheme status");
         }
-      );
-
-      setOperationLoading("update", false);
-      setLoading(false);
+      } catch (error) {
+        console.error("Toggle error:", error);
+        toast.error(error.message || "Failed to update scheme status");
+        setErrors({
+          general: error.message || "Failed to update scheme status",
+          validation: [],
+        });
+      } finally {
+        setOperationLoading("update", false);
+        console.log("=== TOGGLE DEBUG END ===");
+      }
     },
-    [filteredData, setOperationLoading]
+    [setOperationLoading]
   );
 
   const handleDelete = useCallback(
@@ -506,10 +556,19 @@ export const SchemeManager = () => {
   // EFFECTS
   // ============================================================================
 
+  // Initial load on mount
   useEffect(() => {
     loadSchemeData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, currentPage]);
+  }, []);
+
+  // Reload on page change
+  useEffect(() => {
+    if (currentPage > 1) {
+      loadSchemeData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage]); // Only reload on page change, not on filter change (use Search button)
 
   // ============================================================================
   // RENDER
@@ -569,6 +628,7 @@ export const SchemeManager = () => {
               filters={filters}
               handleInputChange={handleInputChange}
               onSearch={loadSchemeData}
+              onClear={handleClearFilters}
             />
           </div>
         </div>
@@ -576,10 +636,7 @@ export const SchemeManager = () => {
         {/* Table Section */}
         <div className="mt-6 overflow-visible">
           {/* Table Header */}
-          <SchemeTableHeader
-            onAddScheme={openAddModal}
-            totalSchemes={totalSchemes}
-          />
+          <SchemeTableHeader onAddScheme={openAddModal} userRole={userRole} />
 
           {/* Paginated Table */}
           <PaginatedTable
@@ -624,9 +681,6 @@ export const SchemeManager = () => {
           ({ modalKey, label }) =>
             isModal[modalKey] && (
               <SuperModal key={modalKey} onClose={() => closeModal(modalKey)}>
-                <div className="text-lg font-semibold mb-4 dark:text-white">
-                  {label} Commission
-                </div>
                 <CommissionEditableForm
                   serviceKey={modalKey}
                   commission={selectedCommission}

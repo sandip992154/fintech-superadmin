@@ -277,7 +277,7 @@ const CommissionImportExport = ({
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="w-full max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
@@ -288,7 +288,10 @@ const CommissionImportExport = ({
             Import commission data from Excel files or export existing data
           </p>
         </div>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+        <button
+          onClick={onClose}
+          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+        >
           <FaTimes size={24} />
         </button>
       </div>
@@ -312,12 +315,12 @@ const CommissionImportExport = ({
 
           {/* Validation Results */}
           {validationResults && (
-            <div className="mb-4 p-4 border rounded-lg">
+            <div className="mb-4 p-4 border rounded-lg max-h-96 overflow-y-auto">
               <div className="flex items-center mb-2">
                 {validationResults.isValid ? (
-                  <FaCheck className="text-green-500 mr-2" />
+                  <FaCheck className="text-green-500 mr-2 flex-shrink-0" />
                 ) : (
-                  <FaTimes className="text-red-500 mr-2" />
+                  <FaTimes className="text-red-500 mr-2 flex-shrink-0" />
                 )}
                 <span
                   className={`font-medium ${
@@ -338,9 +341,11 @@ const CommissionImportExport = ({
                   <h4 className="font-medium text-red-800 dark:text-red-400 mb-1">
                     Errors:
                   </h4>
-                  <ul className="list-disc list-inside text-sm text-red-700 dark:text-red-300">
+                  <ul className="list-disc list-inside text-sm text-red-700 dark:text-red-300 space-y-1 max-h-48 overflow-y-auto">
                     {validationResults.errors.map((error, index) => (
-                      <li key={index}>{error}</li>
+                      <li key={index} className="break-words">
+                        {error}
+                      </li>
                     ))}
                   </ul>
                 </div>
@@ -352,9 +357,11 @@ const CommissionImportExport = ({
                   <h4 className="font-medium text-yellow-800 dark:text-yellow-400 mb-1">
                     Warnings:
                   </h4>
-                  <ul className="list-disc list-inside text-sm text-yellow-700 dark:text-yellow-300">
+                  <ul className="list-disc list-inside text-sm text-yellow-700 dark:text-yellow-300 space-y-1 max-h-48 overflow-y-auto">
                     {validationResults.warnings.map((warning, index) => (
-                      <li key={index}>{warning}</li>
+                      <li key={index} className="break-words">
+                        {warning}
+                      </li>
                     ))}
                   </ul>
                 </div>
