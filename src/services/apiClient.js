@@ -2,9 +2,11 @@ import axios from "axios";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
 
+console.log("🔗 API Client initialized with BASE_URL:", BASE_URL);
+
 const apiClient = axios.create({
   baseURL: BASE_URL,
-  timeout: 20000,
+  timeout: 30000, // Increased to 30 seconds for Render cold starts
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
@@ -18,16 +20,30 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    console.log(`📡 Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    console.error("❌ Request error:", error);
+    return Promise.reject(error);
+  }
 );
 
 // Response interceptor for error handling
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log(`✅ Response: ${response.status} from ${response.config.url}`);
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
+    
+    console.error("❌ Response error:", {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message,
+      url: originalRequest?.url,
+    });
 
     // Handle validation errors
     if (error.response?.status === 422) {
@@ -58,7 +74,7 @@ apiClient.interceptors.response.use(
         originalRequest._retry = true;
 
         try {
-          const response = await axios.post(`${BASE_URL}/refresh`, {
+          const response = await axios.post(`${BASE_URL}/auth/refresh`, {
             refresh_token: refreshToken,
           });
 
@@ -70,6 +86,7 @@ apiClient.interceptors.response.use(
           return apiClient(originalRequest);
         } catch (refreshError) {
           // Token refresh failed - clear auth and redirect to login
+          console.error("❌ Token refresh failed");
           localStorage.clear();
           sessionStorage.clear();
           window.location.href = "/signin";

@@ -62,18 +62,35 @@ export const SignIn = () => {
   const handleDemoSubmit = async () => {
     try {
       setLoading(true);
+      console.log("🚀 Starting demo login...");
       
       // Use authService.demoLogin which has proper CORS configuration
       const response = await authService.demoLogin();
+      console.log("✅ Demo login response:", response);
 
       // Complete the authentication in AuthContext
       await completeDemoLogin();
+      console.log("✅ Demo login completed, user data loaded");
 
       authNotifications.loginSuccess(`Welcome ${response.role}!`);
       navigate("/");
     } catch (error) {
-      authNotifications.loginError(error.message || "Demo login failed");
-      console.error("Demo login error:", error);
+      console.error("❌ Demo login error:", error);
+      
+      // Provide detailed error messages
+      if (error.message?.includes("Network")) {
+        authNotifications.loginError("Network error: Cannot reach backend. Check your connection and backend URL.");
+      } else if (error.message?.includes("CORS")) {
+        authNotifications.loginError("CORS error: Backend rejected request from this domain.");
+      } else if (error.message?.includes("timeout") || error.message?.includes("Timeout")) {
+        authNotifications.loginError("Backend is taking too long to respond. Please try again.");
+      } else if (error.message?.includes("401")) {
+        authNotifications.loginError("Invalid credentials. Demo credentials may have changed.");
+      } else if (error.message?.includes("500")) {
+        authNotifications.loginError("Server error. Please try again or contact support.");
+      } else {
+        authNotifications.loginError(error.message || "Demo login failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

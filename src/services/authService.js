@@ -129,29 +129,48 @@ const authService = {
       formData.append("username", "superadmin");
       formData.append("password", "SuperAdmin@123");
 
+      console.log(`SuperAdminAuthService: Calling ${apiClient.defaults.baseURL}/auth/demo-login`);
       const response = await apiClient.post("/auth/demo-login", formData, {
         headers: {
           "Content-Type": undefined,
         },
+        timeout: 30000, // 30 second timeout
       });
+
+      console.log("SuperAdminAuthService: Response received:", response.status);
 
       // Store tokens and user data
       if (response.data.access_token) {
         localStorage.setItem("token", response.data.access_token);
         localStorage.setItem("refresh_token", response.data.refresh_token);
         localStorage.setItem("user_role", response.data.role);
+        console.log("SuperAdminAuthService: Tokens stored in localStorage");
       }
 
       console.log("SuperAdminAuthService: Demo login successful");
       return response.data;
     } catch (error) {
       console.error("SuperAdminAuthService: Demo login error:", error);
+      console.error("Error details:", {
+        message: error.message,
+        response: error.response?.status,
+        data: error.response?.data,
+        status: error.code,
+      });
+
+      // Handle different error types
       if (error.response?.data?.detail) {
         throw new Error(error.response.data.detail);
+      } else if (error.code === "ECONNABORTED") {
+        throw new Error("Request timeout: Backend took too long to respond");
+      } else if (error.message?.includes("Network")) {
+        throw new Error("Network Error: Cannot reach the backend server");
+      } else if (error.message?.includes("CORS")) {
+        throw new Error("CORS Error: Backend rejected the request");
       } else if (error.message) {
         throw new Error(error.message);
       }
-      throw new Error("Demo login failed");
+      throw new Error("Demo login failed: Unknown error");
     }
   },
 
