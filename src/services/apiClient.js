@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
 
 const apiClient = axios.create({
   baseURL: BASE_URL,
@@ -44,9 +44,9 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401) {
       // Don't try token refresh for login endpoints
       if (
-        originalRequest.url?.includes("/auth/login") ||
-        originalRequest.url?.includes("/auth/login-otp-verify") ||
-        originalRequest.url?.includes("/auth/refresh")
+        originalRequest.url?.includes("/login") ||
+        originalRequest.url?.includes("/login-otp-verify") ||
+        originalRequest.url?.includes("/refresh")
       ) {
         return Promise.reject(error);
       }
@@ -58,7 +58,7 @@ apiClient.interceptors.response.use(
         originalRequest._retry = true;
 
         try {
-          const response = await axios.post(`${BASE_URL}/auth/refresh`, {
+          const response = await axios.post(`${BASE_URL}/refresh`, {
             refresh_token: refreshToken,
           });
 

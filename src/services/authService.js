@@ -80,7 +80,7 @@ const authService = {
     formData.append("password", data.password);
 
     try {
-      const response = await apiClient.post("/auth/login", formData, {
+      const response = await apiClient.post("/login", formData, {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
         },
@@ -118,6 +118,40 @@ const authService = {
         throw new Error(error.response.data.detail);
       }
       throw error;
+    }
+  },
+
+  // Demo login - bypasses OTP verification
+  demoLogin: async () => {
+    try {
+      console.log("SuperAdminAuthService: Starting demo login");
+      const formData = new FormData();
+      formData.append("username", "superadmin");
+      formData.append("password", "SuperAdmin@123");
+
+      const response = await apiClient.post("/auth/demo-login", formData, {
+        headers: {
+          "Content-Type": undefined,
+        },
+      });
+
+      // Store tokens and user data
+      if (response.data.access_token) {
+        localStorage.setItem("token", response.data.access_token);
+        localStorage.setItem("refresh_token", response.data.refresh_token);
+        localStorage.setItem("user_role", response.data.role);
+      }
+
+      console.log("SuperAdminAuthService: Demo login successful");
+      return response.data;
+    } catch (error) {
+      console.error("SuperAdminAuthService: Demo login error:", error);
+      if (error.response?.data?.detail) {
+        throw new Error(error.response.data.detail);
+      } else if (error.message) {
+        throw new Error(error.message);
+      }
+      throw new Error("Demo login failed");
     }
   },
 

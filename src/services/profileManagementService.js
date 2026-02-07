@@ -12,7 +12,7 @@ class ProfileManagementService {
    */
   static async getProfileDetails() {
     try {
-      const response = await apiClient.get("/api/v1/profile/details");
+      const response = await apiClient.get("/profile/details");
       return response.data;
     } catch (error) {
       console.error("Error fetching profile details:", error);
@@ -26,7 +26,7 @@ class ProfileManagementService {
   static async updateProfileDetails(profileData) {
     try {
       const response = await apiClient.put(
-        "/api/v1/profile/details",
+        "/profile/details",
         profileData
       );
       return response.data;
@@ -94,7 +94,7 @@ class ProfileManagementService {
    */
   static async getBankDetails() {
     try {
-      const response = await apiClient.get("/api/v1/profile/bank-details");
+      const response = await apiClient.get("/profile/bank-details");
       return response.data;
     } catch (error) {
       console.error("Error fetching bank details:", error);
@@ -125,7 +125,7 @@ class ProfileManagementService {
    */
   static async getProfileStatus() {
     try {
-      const response = await apiClient.get("/api/v1/profile/status");
+      const response = await apiClient.get("/profile/status");
       return response.data;
     } catch (error) {
       console.error("Error fetching profile status:", error);
@@ -140,7 +140,7 @@ class ProfileManagementService {
    */
   static async getKYCDetails() {
     try {
-      const response = await apiClient.get("/api/v1/profile/kyc-details");
+      const response = await apiClient.get("/profile/kyc-details");
       return response.data;
     } catch (error) {
       console.error("Error fetching KYC details:", error);

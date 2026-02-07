@@ -14,6 +14,11 @@ const UserDropdown = ({ ref }) => {
 
   console.log("user", user);
 
+  // Return null if user data is not loaded
+  if (!user) {
+    return null;
+  }
+
   return (
     <div
       ref={ref}

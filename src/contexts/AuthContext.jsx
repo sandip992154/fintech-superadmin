@@ -64,8 +64,12 @@ export const AuthProvider = ({ children }) => {
     };
 
     if (isAuthenticated) {
-      const refreshInterval = 24 * 60 * 60 * 1000; // 24 hours (refresh once a day)
+      // Refresh token every 25 minutes (5 minutes before 30-minute backend expiry)
+      const refreshInterval = 25 * 60 * 1000;
       refreshTimer = setInterval(refreshTokenWithRetry, refreshInterval);
+      
+      // Also refresh immediately on first auth
+      refreshTokenWithRetry();
     }
 
     return () => clearInterval(refreshTimer);
@@ -231,6 +235,19 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Complete demo login by loading user data and setting auth state
+  const completeDemoLogin = async () => {
+    try {
+      const userData = await authService.getCurrentUser();
+      setUser(userData);
+      setIsAuthenticated(true);
+      return { success: true, user: userData };
+    } catch (error) {
+      console.error("Error completing demo login:", error);
+      throw error;
+    }
+  };
+
   // Enhanced session activity monitoring with warnings
   useEffect(() => {
     let inactivityTimer;
@@ -318,8 +335,10 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated,
     isOtpSent,
     setIsOtpSent,
+    pendingIdentifier,
     login,
     verifyOtp,
+    completeDemoLogin,
     logout: handleLogout,
     changePassword,
     forgotPassword,

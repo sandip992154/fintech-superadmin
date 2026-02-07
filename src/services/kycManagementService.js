@@ -93,7 +93,7 @@ class KYCManagementService {
    */
   async getKYCApplicationDetails(userId) {
     try {
-      const response = await apiClient.request(`/api/v1/kyc/review/${userId}`, {
+      const response = await apiClient.request(`/kyc/review/${userId}`, {
         method: "GET",
       });
       return response;
@@ -158,7 +158,7 @@ class KYCManagementService {
    */
   async getKYCStats() {
     try {
-      const response = await apiClient.request("/api/v1/kyc/stats", {
+      const response = await apiClient.request("/kyc/stats", {
         method: "GET",
       });
       return response;
@@ -175,7 +175,7 @@ class KYCManagementService {
     const queryString = new URLSearchParams(params).toString();
     try {
       const response = await apiClient.request(
-        `/api/v1/kyc/history?${queryString}`,
+        `/kyc/history?${queryString}`,
         {
           method: "GET",
         }

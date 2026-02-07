@@ -11,10 +11,12 @@ import {
   Shield,
   CheckCircle,
   AlertCircle,
+  Zap,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { LoadingButton } from "../components/ui/Loading";
 import { authNotifications } from "../components/common/modernNotificationService";
+import authService from "../services/authService";
 
 // Validation Schema
 const signInSchema = z.object({
@@ -34,7 +36,7 @@ export const SignIn = () => {
   const [rememberMe, setRememberMe] = useState(false);
   const [otpTimer, setOtpTimer] = useState(0);
   const [storedCredentials, setStoredCredentials] = useState(null); // Store credentials for OTP resend
-  const { login, verifyOtp, isOtpSent, setIsOtpSent, pendingIdentifier } =
+  const { login, verifyOtp, isOtpSent, setIsOtpSent, pendingIdentifier, completeDemoLogin } =
     useAuth();
   const navigate = useNavigate();
 
@@ -49,11 +51,40 @@ export const SignIn = () => {
     return () => clearInterval(interval);
   }, [otpTimer]);
 
+  // Fill Demo Credentials
+  const handleDemoLogin = () => {
+    setLoginValue("identifier", "superadmin");
+    setLoginValue("password", "SuperAdmin@123");
+    authNotifications.otpSent("Demo credentials loaded! Click Sign in to continue.");
+  };
+
+  // Submit form with demo endpoint
+  const handleDemoSubmit = async () => {
+    try {
+      setLoading(true);
+      
+      // Use authService.demoLogin which has proper CORS configuration
+      const response = await authService.demoLogin();
+
+      // Complete the authentication in AuthContext
+      await completeDemoLogin();
+
+      authNotifications.loginSuccess(`Welcome ${response.role}!`);
+      navigate("/");
+    } catch (error) {
+      authNotifications.loginError(error.message || "Demo login failed");
+      console.error("Demo login error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const {
     register: registerLogin,
     handleSubmit: handleLoginSubmit,
     formState: { errors: loginErrors },
     reset: resetLoginForm,
+    setValue: setLoginValue,
   } = useForm({
     resolver: zodResolver(signInSchema),
   });
@@ -383,20 +414,20 @@ export const SignIn = () => {
                     </div>
 
                     {/* Auto-Fill and Forgot Password */}
-                    <div className="flex items-center justify-end text-sm">
-                      {/* <label className="flex items-center text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={rememberMe}
-                          onChange={(e) => setRememberMe(e.target.checked)}
-                          className="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                        Auto-Fill Credentials
-                      </label> */}
+                    <div className="flex items-center justify-between text-sm gap-4">
+                      <button
+                        type="button"
+                        onClick={handleDemoSubmit}
+                        disabled={loading}
+                        className="flex items-center gap-2 px-3 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
+                      >
+                        <Zap className="h-4 w-4" />
+                        {loading ? "Logging in..." : "Demo"}
+                      </button>
                       <button
                         type="button"
                         onClick={() => navigate("/forgot-password")}
-                        className="self-end text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                        className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
                       >
                         Forgot Password?
                       </button>

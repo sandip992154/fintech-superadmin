@@ -4,16 +4,15 @@
  */
 import apiClient from "./apiClient.js";
 
-const API_BASE_URL = "/api/v1";
-
+// Note: apiClient already has baseURL set to /api/v1, so paths should NOT include it
 class SchemeManagementService {
   constructor() {
-    this.baseURL = API_BASE_URL;
+    this.baseURL = ""; // Empty since apiClient handles the prefix
   }
 
-  // Helper method to build endpoint
+  // Helper method to build endpoint - no prefix needed
   buildEndpoint(path) {
-    return `${this.baseURL}${path}`;
+    return path; // apiClient's baseURL will be prepended
   }
 
   // ==================== SCHEMES API ====================
@@ -36,8 +35,26 @@ class SchemeManagementService {
         pageSize: response.data.pageSize || 10,
       };
     } catch (error) {
+      // Handle 404 gracefully - return empty list instead of error
+      if (error.response?.status === 404) {
+        console.warn("Schemes endpoint not found or no data available");
+        return {
+          items: [],
+          total: 0,
+          page: params.page || 1,
+          pageSize: params.limit || 10,
+        };
+      }
+      
+      // Log error but return empty result instead of throwing
       console.error("Error fetching schemes:", error);
-      throw new Error(`Failed to fetch schemes: ${error.message}`);
+      return {
+        items: null, // Return null to indicate error, not empty array
+        total: 0,
+        error: error.message,
+        page: params.page || 1,
+        pageSize: params.limit || 10,
+      };
     }
   }
 
@@ -68,10 +85,24 @@ class SchemeManagementService {
         }
       });
 
-      return await this.getSchemes(cleanFilters);
+      const result = await this.getSchemes(cleanFilters);
+      
+      // If items is null (error occurred), return the error response
+      if (result.items === null) {
+        console.warn("Filtered schemes request encountered an error");
+      }
+      
+      return result;
     } catch (error) {
       console.error("Error fetching filtered schemes:", error);
-      throw new Error(`Failed to fetch filtered schemes: ${error.message}`);
+      // Return null for error cases instead of throwing
+      return {
+        items: null,
+        total: 0,
+        error: error.message,
+        page: filters.page || 1,
+        pageSize: filters.limit || 10,
+      };
     }
   }
 
