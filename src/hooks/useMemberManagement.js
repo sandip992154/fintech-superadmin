@@ -292,8 +292,9 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
         };
       } catch (err) {
         if (mountedRef.current) {
-          const errorMessage = memberService.handleApiError(err);
-          handleError(err, setActionError);
+          // Extract error message from the thrown error
+          const errorMessage = err?.message || "Failed to create member";
+          handleError(errorMessage, setActionError);
           return {
             success: false,
             error: errorMessage,
@@ -336,8 +337,9 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
         };
       } catch (err) {
         if (mountedRef.current) {
-          const errorMessage = memberService.handleApiError(err);
-          handleError(err, setActionError);
+          // Extract error message from the thrown error
+          const errorMessage = err?.message || "Failed to update member";
+          handleError(errorMessage, setActionError);
           return {
             success: false,
             error: errorMessage,
@@ -375,8 +377,9 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
         };
       } catch (err) {
         if (mountedRef.current) {
-          const errorMessage = memberService.handleApiError(err);
-          handleError(err, setActionError);
+          // Error is already a string from memberService.handleApiError
+          const errorMessage = typeof err === "string" ? err : memberService.handleApiError(err);
+          handleError(errorMessage, setActionError);
           return {
             success: false,
             error: errorMessage,
@@ -416,8 +419,9 @@ export const useMemberManagement = (initialRole = null, currentUser = null) => {
         };
       } catch (err) {
         if (mountedRef.current) {
-          const errorMessage = memberService.handleApiError(err);
-          handleError(err, setActionError);
+          // Error is already a string from memberService.handleApiError
+          const errorMessage = typeof err === "string" ? err : memberService.handleApiError(err);
+          handleError(errorMessage, setActionError);
           return {
             success: false,
             error: errorMessage,

@@ -257,11 +257,8 @@ class UnifiedMemberManagementService {
       // Validate data before sending
       const validationResult = this.validateMemberForm(memberData);
       if (!validationResult.isValid) {
-        throw new Error(
-          `Validation failed: ${Object.values(validationResult.errors).join(
-            ", "
-          )}`
-        );
+        const errorMsg = `Validation failed: ${Object.values(validationResult.errors).join(", ")}`;
+        throw new Error(errorMsg);
       }
 
       const preparedData = this.prepareMemberData(memberData);
@@ -276,7 +273,11 @@ class UnifiedMemberManagementService {
       return response.data;
     } catch (error) {
       console.error("Error creating member:", error);
-      throw this.handleApiError(error);
+      const errorMessage = this.handleApiError(error);
+      // Throw with custom message property so it can be caught properly
+      const err = new Error(errorMessage);
+      err.apiError = true;
+      throw err;
     }
   }
 
@@ -297,7 +298,10 @@ class UnifiedMemberManagementService {
       return response.data;
     } catch (error) {
       console.error("Error updating member:", error);
-      throw this.handleApiError(error);
+      const errorMessage = this.handleApiError(error);
+      const err = new Error(errorMessage);
+      err.apiError = true;
+      throw err;
     }
   }
 
@@ -319,7 +323,10 @@ class UnifiedMemberManagementService {
       return response.data;
     } catch (error) {
       console.error("Error updating member status:", error);
-      throw this.handleApiError(error);
+      const errorMessage = this.handleApiError(error);
+      const err = new Error(errorMessage);
+      err.apiError = true;
+      throw err;
     }
   }
 
@@ -336,7 +343,10 @@ class UnifiedMemberManagementService {
       return response.data;
     } catch (error) {
       console.error("Error deleting member:", error);
-      throw this.handleApiError(error);
+      const errorMessage = this.handleApiError(error);
+      const err = new Error(errorMessage);
+      err.apiError = true;
+      throw err;
     }
   }
 
@@ -911,21 +921,56 @@ class UnifiedMemberManagementService {
 
   /**
    * Enhanced error handling with specific form field mapping
+   * Extracts validation errors and specific messages from API responses
    */
   handleApiError(error) {
+    console.error("MemberService Error Handling:", {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message,
+    });
+
+    // First priority: Detail message from API response
     if (error.response?.data?.detail) {
-      return error.response.data.detail;
+      const detail = error.response.data.detail;
+      console.log("Returning detail message:", detail);
+      return detail;
+    }
+
+    // Second priority: Validation errors object (for Pydantic validation errors)
+    if (error.response?.data?.errors && typeof error.response.data.errors === "object") {
+      const errorMessages = [];
+      for (const [field, message] of Object.entries(error.response.data.errors)) {
+        errorMessages.push(`${field}: ${message}`);
+      }
+      if (errorMessages.length > 0) {
+        const combined = errorMessages.join("; ");
+        console.log("Returning validation errors:", combined);
+        return combined;
+      }
+    }
+
+    // Third priority: HTTP status code specific messages
+    if (error.response?.status === 400) {
+      return "Invalid data provided. Please check your inputs and try again.";
     } else if (error.response?.status === 403) {
       return "You don't have permission to perform this action.";
     } else if (error.response?.status === 404) {
-      return "Member not found.";
+      return "Member not found. Please refresh and try again.";
     } else if (error.response?.status === 409) {
       return "This operation conflicts with existing data.";
     } else if (error.response?.status === 422) {
-      return "Invalid data provided. Please check your inputs.";
-    } else if (error.message) {
+      return "Invalid data format. Please check your inputs.";
+    } else if (error.response?.status >= 500) {
+      return "Server error. Please try again later.";
+    }
+
+    // Fallback to error message
+    if (error.message) {
+      console.log("Returning error message:", error.message);
       return error.message;
     }
+
     return "An unexpected error occurred. Please try again.";
   }
 }
