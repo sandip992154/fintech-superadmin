@@ -6,7 +6,7 @@ import { CustomDatePicker } from "../../components/utility/CustomDatePicker";
 import { FaMoneyCheck, FaPlaneDeparture, FaUser } from "react-icons/fa";
 import { Link } from "react-router";
 import { SuperModal } from "../../components/utility/SuperModel";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import { BiSolidUserRectangle } from "react-icons/bi";
 import { PiPottedPlantFill } from "react-icons/pi";
@@ -15,6 +15,8 @@ import BankingServicesCard from "../../components/super/dashboard/cards/BankingS
 import InsuranceLoanCard from "../../components/super/dashboard/cards/InsuranceLoanCard";
 import { ServiceCard } from "../../components/super/dashboard/ServiceCard";
 import TravelServicesCard from "../../components/super/dashboard/cards/TravelServicesCard";
+import apiClient from "../../services/apiClient";
+import { toast } from "react-toastify";
 
 const serviceCards = [
   {
@@ -61,6 +63,56 @@ const Dashboard = () => {
     loan: false,
     travel: false,
   });
+
+  const [userCounts, setUserCounts] = useState({
+    admin: 0,
+    whitelabel: 0,
+    mds: 0,
+    ds: 0,
+    retail: 0,
+    customer: 0,
+  });
+
+  const [loading, setLoading] = useState(true);
+
+  // Fetch dashboard stats from API
+  useEffect(() => {
+    const fetchDashboardStats = async () => {
+      try {
+        setLoading(true);
+        const response = await apiClient.get("/members/dashboard");
+        
+        if (response.data && response.data.role_distribution) {
+          // Map backend role names to frontend role keys
+          const roleMapping = {
+            admin: "admin",
+            whitelabel: "whitelabel",
+            mds: "mds",
+            distributor: "ds",
+            retailer: "retail",
+            customer: "customer",
+          };
+
+          const counts = { admin: 0, whitelabel: 0, mds: 0, ds: 0, retail: 0, customer: 0 };
+
+          // Populate counts from API response
+          Object.keys(roleMapping).forEach((apiRole) => {
+            const frontendRole = roleMapping[apiRole];
+            counts[frontendRole] = response.data.role_distribution[apiRole] || 0;
+          });
+
+          setUserCounts(counts);
+        }
+      } catch (error) {
+        console.error("Error fetching dashboard stats:", error);
+        toast.error("Failed to load user statistics");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardStats();
+  }, []);
 
   const toggleCardVisibility = (card) => {
     setIsCardsVisible((prev) => ({ ...prev, [card]: !prev[card] }));
@@ -121,55 +173,63 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
           {/* User Counts */}
           <div className="bg-white dark:bg-cardOffWhite dark:text-adminOffWhite rounded-md shadow p-4 space-y-2 text-sm">
-            <p className="font-semibold">User Counts</p>
-            <Link to="members/admin">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <RiAdminFill className="text-blue-500" /> Admin
-                </div>
-                <span>1</span>
+            <p className="font-semibold">User Counts (Active Users)</p>
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
               </div>
-            </Link>
-            <Link to="members/whitelabel">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <BsBank className="text-purple-500" /> White Label
-                </div>
-                <span>2</span>
-              </div>
-            </Link>
-            <Link to="members/mds">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <BsShieldPlus className="text-pink-500" /> Master Distributer
-                </div>
-                <span>1</span>
-              </div>
-            </Link>
-            <Link to="members/ds">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <BsPersonBadge className="text-cyan-500" /> Distributer
-                </div>
-                <span>1</span>
-              </div>
-            </Link>
-            <Link to="members/retail">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FaUser className="text-amber-500" /> Retailer
-                </div>
-                <span>1</span>
-              </div>
-            </Link>
-            <Link to="members/customer">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FaUser className="text-cyan-500" /> Customer
-                </div>
-                <span>1</span>
-              </div>
-            </Link>
+            ) : (
+              <>
+                <Link to="members/admin">
+                  <div className="flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded transition">
+                    <div className="flex items-center gap-2">
+                      <RiAdminFill className="text-blue-500" /> Admin
+                    </div>
+                    <span className="font-semibold">{userCounts.admin}</span>
+                  </div>
+                </Link>
+                <Link to="members/whitelabel">
+                  <div className="flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded transition">
+                    <div className="flex items-center gap-2">
+                      <BsBank className="text-purple-500" /> White Label
+                    </div>
+                    <span className="font-semibold">{userCounts.whitelabel}</span>
+                  </div>
+                </Link>
+                <Link to="members/mds">
+                  <div className="flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded transition">
+                    <div className="flex items-center gap-2">
+                      <BsShieldPlus className="text-pink-500" /> Master Distributer
+                    </div>
+                    <span className="font-semibold">{userCounts.mds}</span>
+                  </div>
+                </Link>
+                <Link to="members/ds">
+                  <div className="flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded transition">
+                    <div className="flex items-center gap-2">
+                      <BsPersonBadge className="text-cyan-500" /> Distributer
+                    </div>
+                    <span className="font-semibold">{userCounts.ds}</span>
+                  </div>
+                </Link>
+                <Link to="members/retail">
+                  <div className="flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded transition">
+                    <div className="flex items-center gap-2">
+                      <FaUser className="text-amber-500" /> Retailer
+                    </div>
+                    <span className="font-semibold">{userCounts.retail}</span>
+                  </div>
+                </Link>
+                <Link to="members/customer">
+                  <div className="flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded transition">
+                    <div className="flex items-center gap-2">
+                      <FaUser className="text-cyan-500" /> Customer
+                    </div>
+                    <span className="font-semibold">{userCounts.customer}</span>
+                  </div>
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Support Box */}
