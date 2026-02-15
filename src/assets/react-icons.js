@@ -36,10 +36,10 @@ export {
 };
 
 import { FaUserTie } from "react-icons/fa";
-import { FaSun, FaUserCircle } from "react-icons/fa";
+import { FaSun, FaUserCircle, FaHistory } from "react-icons/fa";
 import { BiSolidMessage } from "react-icons/bi";
 
-export { FaUserTie, FaSun, FaUserCircle, BiSolidMessage };
+export { FaUserTie, FaSun, FaUserCircle, FaHistory, BiSolidMessage };
 
 // arrows
 import { IoIosArrowDown } from "react-icons/io";

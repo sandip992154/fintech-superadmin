@@ -60,12 +60,13 @@ class WalletService {
   }
 
   /**
-   * Top up wallet with amount
+   * Top up wallet with amount and optional remark
    */
-  async topupWallet(userId, amount) {
+  async topupWallet(userId, data) {
     try {
       const response = await apiClient.post(`/transactions/wallet/topup/${userId}`, {
-        amount: parseFloat(amount),
+        amount: parseFloat(data.amount),
+        remark: data.remark || "",
       });
       return {
         success: true,
@@ -92,6 +93,23 @@ class WalletService {
       const response = await apiClient.get(`/transactions/wallet/${userId}/transactions`, {
         params: { limit, offset },
       });
+      // Backend already returns { success: true, data: { transactions: [...], ... } }
+      // So we return it as-is with proper structure
+      if (response.data && response.data.data) {
+        return {
+          success: response.data.success || true,
+          data: {
+            transactions: response.data.data.transactions || [],
+            total_count: response.data.data.total_count || 0,
+            wallet_balance: response.data.data.wallet_balance,
+            wallet_id: response.data.data.wallet_id,
+            limit: response.data.data.limit || limit,
+            offset: response.data.data.offset || offset
+          },
+          error: null,
+          message: "Transactions fetched successfully",
+        };
+      }
       return {
         success: true,
         data: response.data,
@@ -104,6 +122,34 @@ class WalletService {
         data: null,
         error: error.response?.data?.detail || error.message || "Failed to fetch transactions",
         message: error.response?.data?.detail || "An error occurred while fetching transactions",
+      };
+    }
+  }
+
+  /**
+   * Transfer funds to another user's wallet
+   */
+  async transferFunds(userId, transferData) {
+    try {
+      const response = await apiClient.post(`/transactions/wallet/transfer/${userId}`, {
+        amount: parseFloat(transferData.amount),
+        to_user_id: transferData.to_user_id,
+        remark: transferData.remark || "",
+      });
+      return {
+        success: true,
+        data: response.data,
+        error: null,
+        message: response.data.message || "Transfer successful",
+      };
+    } catch (error) {
+      console.error("Error transferring funds:", error);
+      const errorDetail = error.response?.data?.detail;
+      return {
+        success: false,
+        data: null,
+        error: errorDetail?.error || error.message || "Failed to transfer funds",
+        message: errorDetail?.message || "An error occurred while transferring funds",
       };
     }
   }

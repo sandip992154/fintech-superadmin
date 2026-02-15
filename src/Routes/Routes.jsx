@@ -18,6 +18,7 @@ import { RechargeStatement } from "../pages/super/transaction_report/RechargeSta
 import { UTIPancardStatement } from "../pages/super/transaction_report/UTIPancardStatement";
 import { CreditCardPayment } from "../pages/super/transaction_report/CreditCardPayment";
 import { MainWallet } from "../pages/super/wallet_history/MainWallet";
+import MyWallet from "../pages/super/MyWallet";
 import { MatchingPercentage } from "../pages/super/matching_percentage/MatchingPercentage";
 import { MobileUserLogout } from "../pages/super/setup_tools/MobileUserLogout";
 import { APIManager } from "../pages/super/setup_tools/APIManager";
@@ -173,6 +174,11 @@ export const router = createBrowserRouter([
       {
         path: "statement/account",
         element: <MainWallet />,
+      },
+      // My Wallet
+      {
+        path: "wallet/my-wallet",
+        element: <MyWallet />,
       },
       // Matching Percentage
       {
