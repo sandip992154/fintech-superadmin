@@ -62,7 +62,7 @@ class ProfileManagementService {
   static async updatePassword(passwordData) {
     try {
       const response = await apiClient.put(
-        "/api/v1/profile/password",
+        "/profile/password",
         passwordData
       );
       return response.data;
@@ -79,7 +79,7 @@ class ProfileManagementService {
    */
   static async updateMPIN(mpinData) {
     try {
-      const response = await apiClient.put("/api/v1/profile/mpin", mpinData);
+      const response = await apiClient.put("/profile/mpin", mpinData);
       return response.data;
     } catch (error) {
       console.error("Error updating MPIN:", error);
@@ -107,7 +107,7 @@ class ProfileManagementService {
    */
   static async updateBankDetails(bankData) {
     try {
-      const response = await apiClient.put("/api/v1/profile/bank-details", {
+      const response = await apiClient.put("/profile/bank-details", {
         ...bankData,
         security_pin: `${bankData.securityPin}`,
       });
