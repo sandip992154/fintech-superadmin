@@ -130,7 +130,7 @@ class MPINManagementService {
   async adminResetMPIN(userId) {
     try {
       const response = await apiClient.post(
-        `/api/v1/mpin/admin/reset/${userId}`
+        `/mpin/admin/reset/${userId}`
       );
       return response.data;
     } catch (error) {
@@ -145,7 +145,7 @@ class MPINManagementService {
   async unlockMPIN(userId) {
     try {
       const response = await apiClient.post(
-        `/api/v1/mpin/admin/unlock/${userId}`
+        `/mpin/admin/unlock/${userId}`
       );
       return response.data;
     } catch (error) {
