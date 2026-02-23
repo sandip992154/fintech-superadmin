@@ -68,22 +68,67 @@ class ProfileManagementService {
       return response.data;
     } catch (error) {
       console.error("Error updating password:", error);
-      throw error;
+      return {
+        success: false,
+        message:
+          error.response?.data?.detail ||
+          error.message ||
+          "Failed to update password",
+      };
     }
   }
 
   // ========== MPIN MANAGEMENT ==========
 
   /**
-   * Update user's MPIN
+   * Verify PIN reset OTP (Step 2 of the 3-step PIN reset flow).
+   * Called by PinManager internally — not used by the parent hook.
+   * POST /pin/verify-otp
+   */
+  static async verifyPinOTP(otp) {
+    try {
+      const response = await apiClient.post("/pin/verify-otp", { otp });
+      return response.data;
+    } catch (error) {
+      // Surface only safe error messages
+      const status = error.response?.status;
+      const detail = error.response?.data?.detail;
+      return {
+        success: false,
+        message:
+          status && status < 500 && detail
+            ? detail
+            : "OTP verification failed. Please try again.",
+      };
+    }
+  }
+
+  /**
+   * Reset MPIN with a new PIN (Step 3 of the 3-step PIN reset flow).
+   *
+   * FIX: previously updateMPIN() bundled OTP verify + reset into one call.
+   * The OTP verify step is now handled explicitly in PinManager (step 2),
+   * so this method only calls POST /pin/reset.
+   * The backend /pin/reset endpoint validates that a verified OTP exists in DB.
    */
   static async updateMPIN(mpinData) {
     try {
-      const response = await apiClient.put("/profile/mpin", mpinData);
+      const response = await apiClient.post("/pin/reset", {
+        new_pin:     mpinData.new_pin,
+        confirm_pin: mpinData.confirm_pin,
+      });
       return response.data;
     } catch (error) {
-      console.error("Error updating MPIN:", error);
-      throw error;
+      console.error("Error resetting PIN:", error);
+      const status = error.response?.status;
+      const detail = error.response?.data?.detail;
+      return {
+        success: false,
+        message:
+          status && status < 500 && detail
+            ? detail
+            : "Failed to reset PIN. Please restart the flow.",
+      };
     }
   }
 
@@ -114,7 +159,13 @@ class ProfileManagementService {
       return response.data;
     } catch (error) {
       console.error("Error updating bank details:", error);
-      throw error;
+      return {
+        success: false,
+        message:
+          error.response?.data?.detail ||
+          error.message ||
+          "Failed to update bank details",
+      };
     }
   }
 
@@ -247,21 +298,19 @@ class ProfileManagementService {
   }
 
   /**
-   * Validate MPIN data
+   * Validate MPIN data before sending to API.
+   * FIX: was requiring exactly 4 digits; spec requires 4–6.
+   * FIX: removed `otp` check — OTP is now handled as a separate step in PinManager.
    */
   static validateMPINData(mpinData) {
     const errors = {};
 
-    if (!mpinData.new_pin || !/^\d{4}$/.test(mpinData.new_pin)) {
-      errors.new_pin = "PIN must be exactly 4 digits";
+    if (!mpinData.new_pin || !/^\d{4,6}$/.test(mpinData.new_pin)) {
+      errors.new_pin = "PIN must be 4–6 numeric digits";
     }
 
     if (mpinData.new_pin !== mpinData.confirm_pin) {
       errors.confirm_pin = "PINs do not match";
-    }
-
-    if (!mpinData.otp || !/^\d{6}$/.test(mpinData.otp)) {
-      errors.otp = "OTP must be exactly 6 digits";
     }
 
     return {

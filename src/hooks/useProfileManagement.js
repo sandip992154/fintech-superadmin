@@ -158,8 +158,10 @@ export const useProfileManagement = () => {
       }
     } catch (err) {
       console.error("Error updating bank details:", err);
-      setError(err.message);
-      return { success: false, message: err.message };
+      const message =
+        err.response?.data?.detail || err.message || "Failed to update bank details";
+      setError(message);
+      return { success: false, message };
     } finally {
       setSaveLoading(false);
     }
@@ -192,8 +194,10 @@ export const useProfileManagement = () => {
       }
     } catch (err) {
       console.error("Error updating password:", err);
-      setError(err.message);
-      return { success: false, message: err.message };
+      const message =
+        err.response?.data?.detail || err.message || "Failed to update password";
+      setError(message);
+      return { success: false, message };
     } finally {
       setSaveLoading(false);
     }
@@ -202,32 +206,39 @@ export const useProfileManagement = () => {
   // ========== MPIN MANAGEMENT ==========
 
   /**
-   * Update MPIN
+   * Reset MPIN with a new PIN.
+   *
+   * FIX: previously called validateMPINData() which required `otp`.
+   * OTP verification is now an explicit step inside PinManager (step 2),
+   * so this function only validates new_pin / confirm_pin and calls the reset.
    */
   const updateMPIN = async (data) => {
     setSaveLoading(true);
     setError(null);
 
     try {
-      // Validate data before sending
+      // Validate new PIN data (otp no longer required here)
       const validation = ProfileManagementService.validateMPINData(data);
       if (!validation.isValid) {
         throw new Error(Object.values(validation.errors)[0]);
       }
 
       const response = await ProfileManagementService.updateMPIN(data);
-      if (response.success) {
+      // Backend returns { message: "..." } on success
+      if (response.message && response.success !== false) {
         return {
           success: true,
-          message: response.message || "MPIN updated successfully!",
+          message: response.message,
         };
       } else {
-        throw new Error(response.message || "Failed to update MPIN");
+        throw new Error(response.message || "Failed to reset PIN");
       }
     } catch (err) {
-      console.error("Error updating MPIN:", err);
-      setError(err.message);
-      return { success: false, message: err.message };
+      console.error("Error resetting PIN:", err);
+      const message =
+        err.response?.data?.detail || err.message || "Failed to reset PIN";
+      setError(message);
+      return { success: false, message };
     } finally {
       setSaveLoading(false);
     }
