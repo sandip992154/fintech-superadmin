@@ -113,13 +113,14 @@ class ProfileManagementService {
    */
   static async updateMPIN(mpinData) {
     try {
-      const response = await apiClient.post("/pin/reset", {
+      const response = await apiClient.put("/profile/mpin", {
         new_pin:     mpinData.new_pin,
         confirm_pin: mpinData.confirm_pin,
+        otp:         mpinData.otp,
       });
       return response.data;
     } catch (error) {
-      console.error("Error resetting PIN:", error);
+      console.error("Error updating MPIN:", error);
       const status = error.response?.status;
       const detail = error.response?.data?.detail;
       return {
@@ -127,7 +128,7 @@ class ProfileManagementService {
         message:
           status && status < 500 && detail
             ? detail
-            : "Failed to reset PIN. Please restart the flow.",
+            : "Failed to update PIN. Please try again.",
       };
     }
   }
@@ -187,7 +188,7 @@ class ProfileManagementService {
   // ========== DISABLED SECTIONS ==========
 
   /**
-   * Get KYC details (for non-superadmin users)
+   * Get KYC details
    */
   static async getKYCDetails() {
     try {
@@ -200,15 +201,123 @@ class ProfileManagementService {
   }
 
   /**
-   * Check if section is available for current user
+   * Update KYC details (requires MPIN)
    */
-  static async checkSectionAvailability(sectionName) {
+  static async updateKYCDetails(data) {
     try {
-      const status = await this.getProfileStatus();
-      return status.data?.available_sections?.[sectionName] || false;
+      const response = await apiClient.put("/profile/kyc-details", data);
+      return response.data;
     } catch (error) {
-      console.error("Error checking section availability:", error);
-      return false;
+      console.error("Error updating KYC details:", error);
+      return {
+        success: false,
+        message:
+          error.response?.data?.detail ||
+          error.message ||
+          "Failed to update KYC details",
+      };
+    }
+  }
+
+  // ========== CERTIFICATE MANAGER ==========
+
+  /**
+   * Get certificate manager details
+   */
+  static async getCertificateManager() {
+    try {
+      const response = await apiClient.get("/profile/certificate-manager");
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching certificate manager:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update certificate manager (requires MPIN)
+   */
+  static async updateCertificateManager(data) {
+    try {
+      const response = await apiClient.put("/profile/certificate-manager", data);
+      return response.data;
+    } catch (error) {
+      console.error("Error updating certificate manager:", error);
+      return {
+        success: false,
+        message:
+          error.response?.data?.detail ||
+          error.message ||
+          "Failed to update certificate details",
+      };
+    }
+  }
+
+  // ========== ROLE MANAGER ==========
+
+  /**
+   * Get role manager details
+   */
+  static async getRoleManager() {
+    try {
+      const response = await apiClient.get("/profile/role-manager");
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching role manager:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update role manager (requires MPIN)
+   */
+  static async updateRoleManager(data) {
+    try {
+      const response = await apiClient.put("/profile/role-manager", data);
+      return response.data;
+    } catch (error) {
+      console.error("Error updating role manager:", error);
+      return {
+        success: false,
+        message:
+          error.response?.data?.detail ||
+          error.message ||
+          "Failed to update role",
+      };
+    }
+  }
+
+  // ========== MAPPING MANAGER ==========
+
+  /**
+   * Get mapping manager details
+   */
+  static async getMappingManager() {
+    try {
+      const response = await apiClient.get("/profile/mapping-manager");
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching mapping manager:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update mapping manager (requires MPIN)
+   */
+  static async updateMappingManager(data) {
+    try {
+      const response = await apiClient.put("/profile/mapping-manager", data);
+      return response.data;
+    } catch (error) {
+      console.error("Error updating mapping manager:", error);
+      return {
+        success: false,
+        message:
+          error.response?.data?.detail ||
+          error.message ||
+          "Failed to update mapping",
+      };
     }
   }
 
@@ -272,8 +381,18 @@ class ProfileManagementService {
       errors.current_password = "Current password is required";
     }
 
-    if (!passwordData.new_password || passwordData.new_password.length < 6) {
-      errors.new_password = "New password must be at least 6 characters long";
+    if (!passwordData.new_password || passwordData.new_password.length < 8) {
+      errors.new_password = "New password must be at least 8 characters long";
+    } else {
+      if (!/[A-Z]/.test(passwordData.new_password)) {
+        errors.new_password = "Password must contain at least one uppercase letter";
+      } else if (!/[a-z]/.test(passwordData.new_password)) {
+        errors.new_password = "Password must contain at least one lowercase letter";
+      } else if (!/\d/.test(passwordData.new_password)) {
+        errors.new_password = "Password must contain at least one digit";
+      } else if (!/[!@#$%^&*(),.?":{}|<>]/.test(passwordData.new_password)) {
+        errors.new_password = "Password must contain at least one special character";
+      }
     }
 
     if (!passwordData.confirm_password) {
@@ -284,11 +403,11 @@ class ProfileManagementService {
       errors.confirm_password = "Passwords do not match";
     }
 
-    // Validate security PIN
+    // Validate security PIN (4-6 digits)
     if (!passwordData.security_pin) {
       errors.security_pin = "Security PIN is required";
-    } else if (!/^\d{4}$/.test(passwordData.security_pin)) {
-      errors.security_pin = "Security PIN must be exactly 4 digits";
+    } else if (!/^\d{4,6}$/.test(passwordData.security_pin)) {
+      errors.security_pin = "Security PIN must be 4-6 digits";
     }
 
     return {
@@ -312,7 +431,9 @@ class ProfileManagementService {
     if (mpinData.new_pin !== mpinData.confirm_pin) {
       errors.confirm_pin = "PINs do not match";
     }
-
+    if (!mpinData.otp || !/^\d{6}$/.test(mpinData.otp)) {
+      errors.otp = "OTP must be exactly 6 digits";
+    }
     return {
       isValid: Object.keys(errors).length === 0,
       errors,
@@ -337,21 +458,11 @@ class ProfileManagementService {
       errors.ifscCode = "Invalid IFSC code format (e.g., SBIN0001234)";
     }
 
-    // Security PIN is optional for SuperAdmin, required for others
-    if (!isSuperAdmin) {
-      if (!bankData.securityPin) {
-        errors.securityPin = "Security PIN is required";
-      } else {
-        const pin = Number(bankData.securityPin);
-        if (isNaN(pin) || pin < 1000 || pin > 9999) {
-          errors.securityPin = "Security PIN must be exactly 4 digits";
-        }
-      }
-    } else if (bankData.securityPin) {
-      const pin = Number(bankData.securityPin);
-      if (isNaN(pin) || pin < 1000 || pin > 9999) {
-        errors.securityPin = "Security PIN must be exactly 4 digits";
-      }
+    // Security PIN required for all users (MPIN verification)
+    if (!bankData.securityPin) {
+      errors.securityPin = "Security PIN is required";
+    } else if (!/^\d{4,6}$/.test(String(bankData.securityPin))) {
+      errors.securityPin = "Security PIN must be 4-6 digits";
     }
 
     return {

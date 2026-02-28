@@ -11,6 +11,10 @@ export const useProfileManagement = () => {
   // State management
   const [profileData, setProfileData] = useState(null);
   const [bankDetails, setBankDetails] = useState(null);
+  const [kycDetails, setKycDetails] = useState(null);
+  const [certificateData, setCertificateData] = useState(null);
+  const [roleData, setRoleData] = useState(null);
+  const [mappingData, setMappingData] = useState(null);
   const [profileStatus, setProfileStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -207,17 +211,14 @@ export const useProfileManagement = () => {
 
   /**
    * Reset MPIN with a new PIN.
-   *
-   * FIX: previously called validateMPINData() which required `otp`.
-   * OTP verification is now an explicit step inside PinManager (step 2),
-   * so this function only validates new_pin / confirm_pin and calls the reset.
+   * Validates new_pin, confirm_pin, and otp then calls the backend.
    */
   const updateMPIN = async (data) => {
     setSaveLoading(true);
     setError(null);
 
     try {
-      // Validate new PIN data (otp no longer required here)
+      // Validate PIN data including OTP
       const validation = ProfileManagementService.validateMPINData(data);
       if (!validation.isValid) {
         throw new Error(Object.values(validation.errors)[0]);
@@ -270,11 +271,151 @@ export const useProfileManagement = () => {
           certificate_manager: true,
           role_manager: true,
           mapping_manager: true,
-          kyc_details: false, // Not available for SuperAdmin
+          kyc_details: true,
         },
       });
     }
   }, [user]);
+
+  // ========== KYC DETAILS ==========
+
+  const fetchKYCDetails = useCallback(async () => {
+    if (!user) return;
+    try {
+      const response = await ProfileManagementService.getKYCDetails();
+      if (response.success) {
+        setKycDetails(response.data);
+      }
+    } catch (err) {
+      console.error("Error fetching KYC details:", err);
+      setKycDetails({ shop_name: "", gst_number: "", aadhar_number: "", pan_number: "" });
+    }
+  }, [user]);
+
+  const updateKYCDetails = async (data) => {
+    setSaveLoading(true);
+    setError(null);
+    try {
+      const response = await ProfileManagementService.updateKYCDetails(data);
+      if (response.success) {
+        setKycDetails((prev) => ({ ...prev, ...data }));
+        return { success: true, message: response.message || "KYC details updated successfully!" };
+      } else {
+        throw new Error(response.message || "Failed to update KYC details");
+      }
+    } catch (err) {
+      const message = err.response?.data?.detail || err.message || "Failed to update KYC details";
+      setError(message);
+      return { success: false, message };
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  // ========== CERTIFICATE MANAGER ==========
+
+  const fetchCertificateManager = useCallback(async () => {
+    if (!user) return;
+    try {
+      const response = await ProfileManagementService.getCertificateManager();
+      if (response.success) {
+        setCertificateData(response.data);
+      }
+    } catch (err) {
+      console.error("Error fetching certificate data:", err);
+      setCertificateData({ cmo: "", coo: "" });
+    }
+  }, [user]);
+
+  const updateCertificateManager = async (data) => {
+    setSaveLoading(true);
+    setError(null);
+    try {
+      const response = await ProfileManagementService.updateCertificateManager(data);
+      if (response.success) {
+        setCertificateData((prev) => ({ ...prev, ...data }));
+        return { success: true, message: response.message || "Certificate details updated successfully!" };
+      } else {
+        throw new Error(response.message || "Failed to update certificate details");
+      }
+    } catch (err) {
+      const message = err.response?.data?.detail || err.message || "Failed to update certificate details";
+      setError(message);
+      return { success: false, message };
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  // ========== ROLE MANAGER ==========
+
+  const fetchRoleManager = useCallback(async () => {
+    if (!user) return;
+    try {
+      const response = await ProfileManagementService.getRoleManager();
+      if (response.success) {
+        setRoleData(response.data);
+      }
+    } catch (err) {
+      console.error("Error fetching role data:", err);
+      setRoleData({ member_role: "" });
+    }
+  }, [user]);
+
+  const updateRoleManager = async (data) => {
+    setSaveLoading(true);
+    setError(null);
+    try {
+      const response = await ProfileManagementService.updateRoleManager(data);
+      if (response.success) {
+        setRoleData((prev) => ({ ...prev, ...data }));
+        return { success: true, message: response.message || "Role updated successfully!" };
+      } else {
+        throw new Error(response.message || "Failed to update role");
+      }
+    } catch (err) {
+      const message = err.response?.data?.detail || err.message || "Failed to update role";
+      setError(message);
+      return { success: false, message };
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  // ========== MAPPING MANAGER ==========
+
+  const fetchMappingManager = useCallback(async () => {
+    if (!user) return;
+    try {
+      const response = await ProfileManagementService.getMappingManager();
+      if (response.success) {
+        setMappingData(response.data);
+      }
+    } catch (err) {
+      console.error("Error fetching mapping data:", err);
+      setMappingData({ parent_member: "" });
+    }
+  }, [user]);
+
+  const updateMappingManager = async (data) => {
+    setSaveLoading(true);
+    setError(null);
+    try {
+      const response = await ProfileManagementService.updateMappingManager(data);
+      if (response.success) {
+        setMappingData((prev) => ({ ...prev, ...data }));
+        return { success: true, message: response.message || "Mapping updated successfully!" };
+      } else {
+        throw new Error(response.message || "Failed to update mapping");
+      }
+    } catch (err) {
+      const message = err.response?.data?.detail || err.message || "Failed to update mapping";
+      setError(message);
+      return { success: false, message };
+    } finally {
+      setSaveLoading(false);
+    }
+  };
 
   /**
    * Check if a section is available for current user
@@ -298,13 +439,17 @@ export const useProfileManagement = () => {
         fetchProfileDetails(),
         fetchBankDetails(),
         fetchProfileStatus(),
+        fetchKYCDetails(),
+        fetchCertificateManager(),
+        fetchRoleManager(),
+        fetchMappingManager(),
       ]);
     } catch (err) {
       console.error("Error initializing profile:", err);
     } finally {
       setLoading(false);
     }
-  }, [user, fetchProfileDetails, fetchBankDetails, fetchProfileStatus]);
+  }, [user, fetchProfileDetails, fetchBankDetails, fetchProfileStatus, fetchKYCDetails, fetchCertificateManager, fetchRoleManager, fetchMappingManager]);
 
   // Initialize on component mount or user change
   useEffect(() => {
@@ -339,6 +484,10 @@ export const useProfileManagement = () => {
     // State
     profileData,
     bankDetails,
+    kycDetails,
+    certificateData,
+    roleData,
+    mappingData,
     profileStatus,
     loading,
     error,
@@ -349,6 +498,10 @@ export const useProfileManagement = () => {
     updateBankDetails,
     updatePassword,
     updateMPIN,
+    updateKYCDetails,
+    updateCertificateManager,
+    updateRoleManager,
+    updateMappingManager,
     refreshProfile,
     clearError,
 

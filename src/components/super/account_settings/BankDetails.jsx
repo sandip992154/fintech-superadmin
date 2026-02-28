@@ -5,8 +5,8 @@ import * as yup from "yup";
 import { toast } from "react-toastify";
 import { useAuth } from "../../../contexts/AuthContext";
 
-// ✅ Dynamic Yup Schema Validation
-const createSchema = (isSuperAdmin) =>
+// ✅ Yup Schema Validation - PIN required for all users (MPIN verification)
+const createSchema = () =>
   yup.object().shape({
     accountNumber: yup
       .string()
@@ -20,20 +20,10 @@ const createSchema = (isSuperAdmin) =>
         "Invalid IFSC Code format (e.g. SBIN0001234)"
       )
       .required("IFSC Code is required"),
-    securityPin: isSuperAdmin
-      ? yup
-          .number()
-          .typeError("PIN must be a number")
-          .integer("PIN must be a whole number")
-          .min(1000, "PIN must be exactly 4 digits")
-          .max(9999, "PIN must be exactly 4 digits")
-      : yup
-          .number()
-          .typeError("PIN must be a number")
-          .integer("PIN must be a whole number")
-          .min(1000, "PIN must be exactly 4 digits")
-          .max(9999, "PIN must be exactly 4 digits")
-          .required("Security PIN is required"),
+    securityPin: yup
+      .string()
+      .matches(/^\d{4,6}$/, "PIN must be 4 to 6 digits")
+      .required("Security PIN is required"),
   });
 
 const BankDetails = ({
@@ -43,7 +33,6 @@ const BankDetails = ({
   error = null,
 }) => {
   const { user } = useAuth();
-  const isSuperAdmin = user?.role === "SuperAdmin";
 
   const {
     register,
@@ -52,7 +41,7 @@ const BankDetails = ({
     formState: { errors },
   } = useForm({
     defaultValues: initialData,
-    resolver: yupResolver(createSchema(isSuperAdmin)),
+    resolver: yupResolver(createSchema()),
   });
 
   // Reset form when initialData changes
@@ -133,16 +122,13 @@ const BankDetails = ({
       {/* Security PIN */}
       <div>
         <label className="block text-sm mb-1">
-          Security PIN{" "}
-          {isSuperAdmin && <span className="text-gray-500">(Optional)</span>}
+          Security PIN (MPIN)
         </label>
         <input
           type="password"
           inputMode="numeric"
-          maxLength="4"
-          placeholder={
-            isSuperAdmin ? "Enter 4 digit PIN (optional)" : "Enter 4 digit PIN"
-          }
+          maxLength="6"
+          placeholder="Enter 4-6 digit PIN"
           {...register("securityPin")}
           className="w-full px-3 py-2 rounded  dark:text-white border border-gray-600"
           onInput={(e) => (e.target.value = e.target.value.replace(/\D/g, ""))}
@@ -150,11 +136,6 @@ const BankDetails = ({
         {errors.securityPin && (
           <p className="text-sm text-red-500 mt-1">
             {errors.securityPin.message}
-          </p>
-        )}
-        {isSuperAdmin && (
-          <p className="text-xs text-gray-500 mt-1">
-            4-digit PIN only required if you have set up an MPIN
           </p>
         )}
       </div>

@@ -11,18 +11,19 @@ const schema = yup.object().shape({
     .required("Current password is required"),
   newPassword: yup
     .string()
-    .min(6, "New password must be at least 6 characters")
+    .min(8, "Password must be at least 8 characters")
+    .matches(/[A-Z]/, "Must contain at least one uppercase letter")
+    .matches(/[a-z]/, "Must contain at least one lowercase letter")
+    .matches(/\d/, "Must contain at least one digit")
+    .matches(/[!@#$%^&*(),.?":{}|<>]/, "Must contain at least one special character")
     .required("New password is required"),
   confirmPassword: yup
     .string()
     .oneOf([yup.ref("newPassword"), null], "Passwords must match")
     .required("Confirm password is required"),
   securityPin: yup
-    .number()
-    .typeError("PIN must be a number")
-    .integer("PIN must be a whole number")
-    .min(1000, "PIN must be exactly 4 digits")
-    .max(9999, "PIN must be exactly 4 digits")
+    .string()
+    .matches(/^\d{4,6}$/, "PIN must be 4 to 6 digits")
     .required("Security PIN is required"),
 });
 
@@ -119,12 +120,12 @@ const PasswordManager = ({
 
       {/* Security PIN */}
       <div>
-        <label className="block text-sm mb-1">Security PIN</label>
+        <label className="block text-sm mb-1">Security PIN (MPIN)</label>
         <input
           type="password"
           inputMode="numeric"
-          maxLength="4"
-          placeholder="Enter 4 digit PIN"
+          maxLength="6"
+          placeholder="Enter 4-6 digit PIN"
           {...register("securityPin")}
           className="w-full px-3 py-2 rounded  dark:text-white border border-gray-600"
           onInput={(e) => (e.target.value = e.target.value.replace(/\D/g, ""))}
