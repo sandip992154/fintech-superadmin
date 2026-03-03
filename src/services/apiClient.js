@@ -7,7 +7,7 @@ console.log("🔗 API Client initialized with BASE_URL:", BASE_URL);
 const apiClient = axios.create({
   baseURL: BASE_URL,
   timeout: 30000, // Increased to 30 seconds for Render cold starts
-  withCredentials: true,
+  withCredentials: false, // JWT uses Bearer token in headers (localStorage), not cookies
   headers: {
     "Content-Type": "application/json",
   },
