@@ -85,21 +85,19 @@ apiClient.interceptors.response.use(
           originalRequest.headers.Authorization = `Bearer ${access_token}`;
           return apiClient(originalRequest);
         } catch (refreshError) {
-          // Token refresh failed - clear auth and redirect to login
+          // Token refresh failed - clear tokens and let React Router redirect via isAuthenticated
           console.error("❌ Token refresh failed");
-          localStorage.clear();
-          sessionStorage.clear();
-          window.location.href = "/signin";
+          ["token","refresh_token","user_data","user_data_ts","login_timestamp","user_role","userData"]
+            .forEach(k => localStorage.removeItem(k));
           return Promise.reject(
             new Error("Session expired. Please login again.")
           );
         }
       }
 
-      // No refresh token or refresh already failed - clear auth and redirect
-      localStorage.clear();
-      sessionStorage.clear();
-      window.location.href = "/signin";
+      // No refresh token or already failed - clear tokens and reject
+      ["token","refresh_token","user_data","user_data_ts","login_timestamp","user_role","userData"]
+        .forEach(k => localStorage.removeItem(k));
       return Promise.reject(new Error("Session expired. Please login again."));
     }
 

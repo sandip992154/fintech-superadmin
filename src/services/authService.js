@@ -1,9 +1,19 @@
 import apiClient from "./apiClient.js";
 
-// Helper function for auth cleanup
+// Helper: clear auth tokens from localStorage (does NOT redirect)
+function clearLocalAuth() {
+  localStorage.removeItem("token");
+  localStorage.removeItem("refresh_token");
+  localStorage.removeItem("user_data");
+  localStorage.removeItem("user_data_ts");
+  localStorage.removeItem("login_timestamp");
+  localStorage.removeItem("user_role");
+  localStorage.removeItem("userData");
+}
+
+// Hard redirect — exported for use only by the 401 interceptor
 function clearAuthAndRedirect() {
-  localStorage.clear();
-  sessionStorage.clear();
+  clearLocalAuth();
   window.location.href = "/signin";
 }
 
@@ -248,8 +258,9 @@ const authService = {
   },
 
   // Logout
+  // Logout — clears tokens only, does NOT redirect (React Router handles navigation)
   logout: () => {
-    clearAuthAndRedirect();
+    clearLocalAuth();
   },
 };
 

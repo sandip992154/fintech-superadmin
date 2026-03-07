@@ -36,9 +36,16 @@ export const SignIn = () => {
   const [rememberMe, setRememberMe] = useState(false);
   const [otpTimer, setOtpTimer] = useState(0);
   const [storedCredentials, setStoredCredentials] = useState(null); // Store credentials for OTP resend
-  const { login, verifyOtp, isOtpSent, setIsOtpSent, pendingIdentifier, completeDemoLogin } =
+  const { login, verifyOtp, isOtpSent, setIsOtpSent, pendingIdentifier, completeDemoLogin, isAuthenticated } =
     useAuth();
   const navigate = useNavigate();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/", { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   // OTP Timer
   useEffect(() => {
@@ -132,10 +139,12 @@ export const SignIn = () => {
       // Handle successful login or OTP requirement
       if (response?.message?.includes("OTP sent")) {
         authNotifications.otpSent("email");
-        setOtpTimer(120); // 2 minutes timer
+        setOtpTimer(120);
         resetOtpForm();
-      } else {
+      } else if (response?._directLogin) {
+        // Direct login (no OTP) — token + user already set in AuthContext
         authNotifications.loginSuccess(response?.user?.name || "User");
+        navigate("/");
       }
     } catch (error) {
       console.error("Login error:", error);

@@ -12,10 +12,32 @@ export const useAuth = () => {
   return context;
 };
 
+// Decode JWT expiry without a library
+const getTokenExpiry = (token) => {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return payload.exp ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+};
+
+const isTokenExpired = (token) => {
+  const expiry = getTokenExpiry(token);
+  if (!expiry) return true;
+  return Date.now() >= expiry - 30_000; // treat as expired 30s early
+};
+
+const getCachedUser = () => {
+  try { return JSON.parse(localStorage.getItem("user_data")); } catch { return null; }
+};
+
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const cachedUser = getCachedUser();
+
+  const [user, setUser] = useState(cachedUser);
+  const [loading, setLoading] = useState(!cachedUser); // no loading flash if cache exists
+  const [isAuthenticated, setIsAuthenticated] = useState(!!cachedUser);
   const [isOtpSent, setIsOtpSent] = useState(false);
   const [pendingIdentifier, setPendingIdentifier] = useState(null);
 
@@ -67,9 +89,8 @@ export const AuthProvider = ({ children }) => {
       // Refresh token every 25 minutes (5 minutes before 30-minute backend expiry)
       const refreshInterval = 25 * 60 * 1000;
       refreshTimer = setInterval(refreshTokenWithRetry, refreshInterval);
-      
-      // Also refresh immediately on first auth
-      refreshTokenWithRetry();
+      // NOTE: do NOT call refreshTokenWithRetry() immediately here —
+      // it fires an extra API call on every page refresh from cache
     }
 
     return () => clearInterval(refreshTimer);
@@ -82,13 +103,31 @@ export const AuthProvider = ({ children }) => {
   const checkAuth = async () => {
     try {
       const token = localStorage.getItem("token");
-      if (token) {
-        const userData = await authService.getCurrentUser();
-        setUser(userData);
-        setIsAuthenticated(true);
+      if (!token || isTokenExpired(token)) {
+        handleLogout(false);
+        return;
       }
+
+      const cached = localStorage.getItem("user_data");
+      const lastRevalidated = parseInt(localStorage.getItem("user_data_ts") || "0", 10);
+      const REVALIDATE_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+      if (cached && Date.now() - lastRevalidated < REVALIDATE_INTERVAL) {
+        // Cache fresh — restore instantly, no API call
+        setUser(JSON.parse(cached));
+        setIsAuthenticated(true);
+        setLoading(false);
+        return;
+      }
+
+      // Cache stale or missing — fetch fresh
+      const userData = await authService.getCurrentUser();
+      localStorage.setItem("user_data", JSON.stringify(userData));
+      localStorage.setItem("user_data_ts", Date.now().toString());
+      setUser(userData);
+      setIsAuthenticated(true);
     } catch (error) {
-      handleLogout();
+      handleLogout(false);
     } finally {
       setLoading(false);
     }
@@ -97,25 +136,39 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials) => {
     try {
       const response = await authService.login(credentials);
-      console.log("Login response:", response); // Debug log
+      console.log("Login response:", response);
 
-      // Get username from credentials
       const username =
         credentials instanceof FormData
           ? credentials.get("username")
           : credentials.username;
 
-      // If we get an OTP sent message, set up the OTP verification state
       if (response?.message?.includes("OTP sent")) {
+        // OTP flow: wait for OTP verification
         setPendingIdentifier(username);
         setIsOtpSent(true);
+        return response;
+      }
+
+      // Direct login: token is in the response — set up auth state immediately
+      if (response?.access_token) {
+        localStorage.setItem("token", response.access_token);
+        if (response.refresh_token) {
+          localStorage.setItem("refresh_token", response.refresh_token);
+        }
+        localStorage.setItem("login_timestamp", Date.now().toString());
+        const userData = await authService.getCurrentUser();
+        localStorage.setItem("user_data", JSON.stringify(userData));
+        localStorage.setItem("user_data_ts", Date.now().toString());
+        setUser(userData);
+        setIsAuthenticated(true);
+        return { ...response, user: userData, _directLogin: true };
       }
 
       return response;
     } catch (error) {
-      console.error("Login error:", error); // Debug log
+      console.error("Login error:", error);
 
-      // Check if the error message indicates OTP was sent
       if (error.message?.includes("OTP sent")) {
         const username =
           credentials instanceof FormData
@@ -126,7 +179,6 @@ export const AuthProvider = ({ children }) => {
         return { message: error.message };
       }
 
-      // Otherwise rethrow the error
       throw error;
     }
   };
@@ -151,8 +203,10 @@ export const AuthProvider = ({ children }) => {
         // Store login timestamp for session management
         localStorage.setItem("login_timestamp", Date.now().toString());
 
-        // Get user profile
+        // Get user profile and cache it
         const userData = await authService.getCurrentUser();
+        localStorage.setItem("user_data", JSON.stringify(userData));
+        localStorage.setItem("user_data_ts", Date.now().toString());
         setUser(userData);
         setIsAuthenticated(true);
         setIsOtpSent(false);
@@ -174,8 +228,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const handleLogout = (showToast = true) => {
-    // Clear all auth-related data
+    // Clear all auth-related data including cache
     authService.logout();
+    localStorage.removeItem("user_data");
+    localStorage.removeItem("user_data_ts");
     setUser(null);
     setIsAuthenticated(false);
     setIsOtpSent(false);
@@ -239,6 +295,8 @@ export const AuthProvider = ({ children }) => {
   const completeDemoLogin = async () => {
     try {
       const userData = await authService.getCurrentUser();
+      localStorage.setItem("user_data", JSON.stringify(userData));
+      localStorage.setItem("user_data_ts", Date.now().toString());
       setUser(userData);
       setIsAuthenticated(true);
       return { success: true, user: userData };
@@ -315,12 +373,14 @@ export const AuthProvider = ({ children }) => {
     }
   }, [isAuthenticated]);
 
-  // Keep session alive on page visibility change
+  // On tab focus: check token expiry locally — no API call
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible" && isAuthenticated) {
-        // Check if token is still valid when user returns to tab
-        checkAuth();
+        const token = localStorage.getItem("token");
+        if (!token || isTokenExpired(token)) {
+          handleLogout(true);
+        }
       }
     };
 
